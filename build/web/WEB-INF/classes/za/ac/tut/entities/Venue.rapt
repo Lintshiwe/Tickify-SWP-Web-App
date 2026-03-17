@@ -1,0 +1,9 @@
+za/ac/tut/entities/Event_.java
+za/ac/tut/entities/VenueGuard_.java
+za/ac/tut/entities/Attendee_.java
+za/ac/tut/entities/Venue_.java
+za/ac/tut/entities/QRCode_.java
+za/ac/tut/entities/EventManager_.java
+za/ac/tut/entities/TertiaryPresenter_.java
+za/ac/tut/entities/Admin_.java
+za/ac/tut/entities/Ticket_.java
