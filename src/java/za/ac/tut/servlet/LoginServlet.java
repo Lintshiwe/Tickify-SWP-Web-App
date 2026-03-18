@@ -1,94 +1,101 @@
 package za.ac.tut.servlet;
 
 import java.io.IOException;
+import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.Map;
 import javax.servlet.ServletException;
-
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import za.ac.tut.databaseManagement.UserDAO;
 
- // Using .do extension for professional standard
 public class LoginServlet extends HttpServlet {
 
     private final UserDAO userDAO = new UserDAO();
+    
+    // Role configuration map for dynamic redirection and data fetching
+    private static final Map<String, RoleConfig> ROLE_MAP = new HashMap<>();
 
-    @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp)
-            throws ServletException, IOException {
-        // Forward to the login page
-        req.getRequestDispatcher("Login.jsp").forward(req, resp);
+    static {
+        ROLE_MAP.put("ADMIN", new RoleConfig("admin", "adminID", "/Admin/AdminDashboard.jsp"));
+        ROLE_MAP.put("EVENT_MANAGER", new RoleConfig("event_manager", "eventManagerID", "/EventManager/EventManagerDashboard.jsp"));
+        ROLE_MAP.put("VENUE_GUARD", new RoleConfig("venue_guard", "venueGuardID", "/VenueGuard/VenueGuardDashboard.jsp"));
+        ROLE_MAP.put("TERTIARY_PRESENTER", new RoleConfig("tertiary_presenter", "tertiaryPresenterID", "/TertiaryPresenterDashboard.do"));
+        ROLE_MAP.put("ATTENDEE", new RoleConfig("attendee", "attendeeID", "/AttendeeDashboardServlet.do"));
     }
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
 
+        // 1. Capture parameters from the form
         String email = req.getParameter("email");
         String password = req.getParameter("password");
+        String chosenRole = req.getParameter("userRole"); // Captured from the Radio Buttons
+
+        // 2. Input Validation
+        if (email == null || email.trim().isEmpty() || 
+            password == null || password.trim().isEmpty() || 
+            chosenRole == null) {
+            handleError(req, resp, "All fields and a role selection are required.");
+            return;
+        }
 
         try {
-            // 1. Authenticate and get Role
-            String role = userDAO.authenticate(email, password);
+            /* * 3. Targeted Authentication
+             * Instead of looping, we check the specific table chosen by the user.
+             * Make sure you have added 'authenticateSpecific' to your UserDAO.
+             */
+            String role = userDAO.authenticateSpecific(email, password, chosenRole);
 
             if (role == null) {
-                req.setAttribute("error", "Invalid email or password.");
-                req.getRequestDispatcher("Login.jsp").forward(req, resp);
+                handleError(req, resp, "Invalid credentials for the selected role: " + chosenRole);
                 return;
             }
 
-            // 2. Map Role to Table and ID Column names
-            String table;
-            String idCol;
-            String redirectPath;
+            // 4. Retrieve metadata for the authenticated role
+            RoleConfig config = ROLE_MAP.get(role);
 
-            switch (role) {
-                case "ADMIN":
-                    table = "admin";
-                    idCol = "adminID";
-                    redirectPath = "/Admin/Dashboard.jsp";
-                    break;
-                case "EVENT_MANAGER":
-                    table = "event_manager";
-                    idCol = "eventManagerID";
-                    redirectPath = "/EventManager/Dashboard.jsp";
-                    break;
-                case "VENUE_GUARD":
-                    table = "venue_guard";
-                    idCol = "venueGuardID";
-                    redirectPath = "/VenueGuard/Dashboard.jsp";
-                    break;
-                case "TERTIARY_PRESENTER":
-                    table = "tertiary_presenter";
-                    idCol = "tertiaryPresenterID";
-                    redirectPath = "/Presenter/Dashboard.jsp";
-                    break;
-                default: // ATTENDEE
-                    table = "attendee";
-                    idCol = "attendeeID";
-                    redirectPath = "/Attendee/Dashboard.jsp";
-                    break;
-            }
+            // 5. Fetch specific user details from the correct table
+            int uid = userDAO.getUserID(email, config.table, config.idCol);
+            String fname = userDAO.getFullName(email, config.table);
 
-            // 3. Fetch specific User Data
-            int uid = userDAO.getUserID(email, table, idCol);
-            // FIXED: Removed idCol argument to match UserDAO.getFullName(String, String)
-            String fname = userDAO.getFullName(email, table);
-
-            // 4. Set Session Attributes
+            // 6. Secure Session Management
             HttpSession session = req.getSession(true);
             session.setAttribute("userEmail", email);
             session.setAttribute("userRole", role);
             session.setAttribute("userID", uid);
             session.setAttribute("userFullName", fname);
+            
+            // Security best practice: rotate session ID on login
+            req.changeSessionId(); 
 
-            // 5. Final Redirect
-            resp.sendRedirect(req.getContextPath() + redirectPath);
+            // 7. Redirect to the appropriate dashboard
+            resp.sendRedirect(req.getContextPath() + config.redirectPath);
 
+        } catch (SQLException e) {
+            log("Database error: " + e.getMessage());
+            handleError(req, resp, "System connection issue. Please try again later.");
         } catch (Exception e) {
-            req.setAttribute("error", "System error: " + e.getMessage());
-            req.getRequestDispatcher("Login.jsp").forward(req, resp);
+            log("General error: " + e.getMessage());
+            handleError(req, resp, "An unexpected error occurred.");
+        }
+    }
+
+    private void handleError(HttpServletRequest req, HttpServletResponse resp, String message) 
+            throws ServletException, IOException {
+        req.setAttribute("error", message);
+        req.getRequestDispatcher("Login.jsp").forward(req, resp);
+    }
+
+    private static class RoleConfig {
+        String table, idCol, redirectPath;
+        RoleConfig(String table, String idCol, String redirectPath) {
+            this.table = table;
+            this.idCol = idCol;
+            this.redirectPath = redirectPath;
         }
     }
 }

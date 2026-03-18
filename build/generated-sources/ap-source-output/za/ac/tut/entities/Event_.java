@@ -11,7 +11,7 @@ import za.ac.tut.entities.TertiaryPresenter;
 import za.ac.tut.entities.Ticket;
 import za.ac.tut.entities.Venue;
 
-@Generated(value="EclipseLink-2.7.10.v20211216-rNA", date="2026-03-17T22:32:10")
+@Generated(value="EclipseLink-2.7.10.v20211216-rNA", date="2026-03-18T03:17:23")
 @StaticMetamodel(Event.class)
 public class Event_ { 
 

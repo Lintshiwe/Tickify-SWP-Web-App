@@ -16,7 +16,8 @@ public class DatabaseConnection {
 
     // Use the Network Client Driver for Derby
     private static final String DRIVER_CLASS = "org.apache.derby.jdbc.ClientDriver";
-    private static final String JDBC_URL = "jdbc:derby://" + DB_HOST + ":" + DB_PORT + "/" + DB_NAME + ";create=true";
+   // FIX: Added ;ssl=off to prevent the Distributed Protocol Error
+    private static final String JDBC_URL = "jdbc:derby://" + DB_HOST + ":" + DB_PORT + "/" + DB_NAME + ";create=true;ssl=off";
 
     static {
         try {
