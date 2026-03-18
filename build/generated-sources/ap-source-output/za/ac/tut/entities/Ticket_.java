@@ -10,7 +10,7 @@ import za.ac.tut.entities.Event;
 import za.ac.tut.entities.EventManager;
 import za.ac.tut.entities.QRCode;
 
-@Generated(value="EclipseLink-2.7.10.v20211216-rNA", date="2026-03-18T03:17:23")
+@Generated(value="EclipseLink-2.7.10.v20211216-rNA", date="2026-03-18T08:40:06")
 @StaticMetamodel(Ticket.class)
 public class Ticket_ { 
 

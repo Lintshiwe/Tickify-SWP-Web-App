@@ -2,335 +2,391 @@
 <%@taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <!DOCTYPE html>
 <html>
-    <head>
-        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-        <title>Tickify | Attendee Dashboard</title>
-        <style>
-            :root {
-                --gold: #FFD700;
-                --black: #000000;
-                --dark-grey: #1a1a1a;
-                --light-grey: #f4f4f4;
-            }
+<head>
+    <meta charset="UTF-8">
+    <title>Tickify | Attendee Dashboard</title>
 
-            body, html {
-                height: 100%;
-                margin: 0;
-                font-family: 'Segoe UI', Tahoma, sans-serif;
-                display: flex;
-                background-color: var(--light-grey);
-                overflow: hidden;
-            }
+    <style>
+            /* ===================== ROOT ===================== */
+     :root {
+         --gold: #FFD700;
+         --black: #000;
+         --light: #f5f5f5;
+         --card-radius: 14px;
+     }
 
-            /* SECTION 1: SIDEBAR (15%) */
-            .sidebar {
-                width: 25%;
-                background-color: var(--black);
-                color: white;
-                display: flex;
-                flex-direction: column;
-                border-right: 4px solid var(--gold);
-                height: 100vh;
-            }
-            .sidebar-header {
-                padding: 30px 10px;
-                text-align: center;
-                font-size: 1.5vw;
-                font-weight: bold;
-                color: var(--gold);
-                border-bottom: 1px solid #333;
-            }
-            .nav-links {
-                flex: 1;
-                padding: 20px 0;
-            }
-            .nav-item {
-                padding: 15px 20px;
-                display: block;
-                color: white;
-                text-decoration: none;
-                transition: 0.3s;
-                font-size: 0.9vw;
-            }
-            .nav-item:hover {
-                background-color: var(--gold);
-                color: var(--black);
-            }
-            .nav-item.active {
-                border-left: 5px solid var(--gold);
-                background-color: var(--dark-grey);
-            }
-            .logout-btn {
-                padding: 15px;
-                background-color: #900;
-                color: white;
-                text-decoration: none;
-                text-align: center;
-                font-weight: bold;
-                font-size: 0.9vw;
-            }
+     /* ===================== BASE ===================== */
+     body {
+         margin: 0;
+         font-family: 'Segoe UI', system-ui, sans-serif;
+         background: var(--light);
+         -webkit-font-smoothing: antialiased;
+     }
 
-            /* SECTION 2: MAIN CONTENT (85%) */
-            .main-content {
-                width: 100%;
-                display: flex;
-                flex-direction: column;
-                height: 100vh;
-                overflow-y: auto;
+     /* ===================== TOPBAR ===================== */
+     .topbar {
+         position: sticky;
+         top: 0;
+         z-index: 100;
+         display: flex;
+         align-items: center;
+         justify-content: space-between;
+         padding: 18px 30px;
 
-            }
+         background: rgba(255,255,255,0.85);
+         backdrop-filter: blur(10px);
+         border-bottom: 1px solid rgba(0,0,0,0.05);
+     }
 
-            header {
-                background-color: white;
-                padding: 20px 40px;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            }
-            .user-welcome h2 {
-                margin: 0;
-                font-size: 1.5rem;
-            }
+     .logo {
+         font-weight: 700;
+         letter-spacing: 1px;
+         color: var(--gold);
+         font-size: 1.1rem;
+     }
 
-            /* BODY AREA - Fills Full Width */
-            .dashboard-body {
-                padding: 40px;
-                width: 100%;
-                box-sizing: border-box;
-            }
-            .section-title {
-                border-bottom: 2px solid var(--gold);
-                padding-bottom: 10px;
-                margin-bottom: 25px;
-                width: 100%;
-            }
+     /* ===================== SEARCH ===================== */
+     .search-bar input {
+         padding: 10px 16px;
+         width: 280px;
+         border-radius: 999px;
+         border: 1px solid #e5e5e5;
+         outline: none;
+         transition: all 0.25s ease;
+         background: #fafafa;
+     }
 
-            /* DYNAMIC EVENT GRID - Optimised for Full Width */
-            .event-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-                gap: 20px;
-                width: 100%;
-            }
+     .search-bar input:focus {
+         border-color: var(--gold);
+         background: white;
+         box-shadow: 0 0 0 3px rgba(255,215,0,0.15);
+     }
 
-            .event-card {
-                background: white;
-                border: 1px solid #ddd;
-                border-radius: 8px;
-                overflow: hidden;
-                transition: 0.3s;
-                display: flex;
-                flex-direction: column;
-                height: 100%;
-            }
-            .event-card:hover {
-                transform: translateY(-5px);
-                box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-                border-color: var(--gold);
-            }
+     /* ===================== PROFILE ===================== */
+     .profile-btn {
+         border: none;
+         background: none;
+         cursor: pointer;
+         padding: 6px;
+         border-radius: 50%;
+         transition: 0.2s;
+     }
 
-            .event-img {
-                height: 140px;
-                background: var(--black);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: var(--gold);
-                font-weight: bold;
-            }
-            .event-info {
-                padding: 20px;
-                flex-grow: 1;
-            }
-            .event-info h3 {
-                margin: 0 0 10px 0;
-                color: var(--black);
-                font-size: 1.2rem;
-            }
-            .event-info p {
-                margin: 5px 0;
-                color: #555;
-                font-size: 0.9rem;
-            }
+     .profile-btn:hover {
+         background: rgba(0,0,0,0.05);
+     }
 
-            .price-tag {
-                font-size: 1.1rem;
-                font-weight: bold;
-                color: var(--black);
-                margin-top: 10px;
-                display: block;
-            }
-            .btn-book {
-                display: block;
-                text-align: center;
-                margin-top: 15px;
-                padding: 10px;
-                background: var(--black);
-                color: var(--gold);
-                border-radius: 4px;
-                text-decoration: none;
-                font-weight: bold;
-            }
-            .btn-book:hover {
-                background: var(--gold);
-                color: var(--black);
-            }
+     /* ===================== DROPDOWN ===================== */
+     .dropdown {
+         position: absolute;
+         right: 0;
+         top: 45px;
+         width: 240px;
 
-            .empty-state {
-                text-align: center;
-                padding: 100px 0;
-                color: #888;
-                grid-column: 1 / -1;
-                width: 100%;
-            }
-            /* 1. LOGOUT BUTTON INTERACTION */
-            .logout-btn {
-                padding: 15px;
-                background-color: #900;
-                color: white;
-                text-decoration: none;
-                text-align: center;
-                font-weight: bold;
-                font-size: 0.9vw;
-                transition: background-color 0.3s ease, transform 0.2s ease; /* Smooth transition */
-            }
+         background: white;
+         border-radius: 16px;
+         padding: 8px 0;
 
-            .logout-btn:hover, .logout-btn:focus {
-                background-color: #cc0000; /* Lighter red on hover */
-                color: white;
-                outline: none;
-            }
+         box-shadow:
+             0 10px 25px rgba(0,0,0,0.08),
+             0 2px 8px rgba(0,0,0,0.05);
 
-            .logout-btn:active {
-                transform: scale(0.98); /* Slight click effect */
-            }
+         display: none;
+         animation: fadeIn 0.2s ease;
+     }
 
-            /* 2. UPDATE PROFILE BUTTON INTERACTION */
-            /* Adding a class or selecting the specific inline style */
-            .quick-actions-update {
-                text-decoration:none;
-                padding: 15px 30px;
-                background: var(--gold);
-                color: black;
-                font-weight: bold;
-                border: 2px solid black;
-                transition: all 0.3s ease;
-            }
+     .dropdown.show {
+         display: block;
+     }
 
-            .quick-actions-update:hover, .quick-actions-update:focus {
-                background-color: var(--black); /* Flips colors on hover */
-                color: var(--gold);
-                outline: none;
-            }
+     @keyframes fadeIn {
+         from {opacity: 0; transform: translateY(-8px);}
+         to {opacity: 1; transform: translateY(0);}
+     }
 
-            /* 3. DELETE ACCOUNT BUTTON INTERACTION */
-            .btn-delete-account {
-                padding: 15px 30px;
-                border: 2px solid #900;
-                background: white;
-                color: #900;
-                font-weight: bold;
-                cursor: pointer;
-                transition: all 0.3s ease;
-            }
+     .dropdown-header {
+         padding: 14px 16px;
+         border-bottom: 1px solid #f0f0f0;
+         font-size: 0.85rem;
+     }
 
-            .btn-delete-account:hover, .btn-delete-account:focus {
-                background-color: #900; /* Shaded Red background */
-                color: white;           /* White text when shaded */
-                outline: none;
-            }
+     .dropdown-header strong {
+         font-size: 0.95rem;
+     }
 
-            .btn-delete-account:active {
-                background-color: #600; /* Darker red when actually clicked */
-            }
-        </style>
-    </head>
-    <body>
+     .dropdown a {
+         display: flex;
+         align-items: center;
+         gap: 12px;
+         padding: 12px 16px;
+         font-size: 0.9rem;
+         color: #222;
+         text-decoration: none;
+         transition: all 0.2s ease;
+     }
 
-       <div class="sidebar">
-            <div class="sidebar-header">TICKIFY</div>
-            <div class="nav-links">
-                <a href="ViewMyTickets.do" class="nav-item">🎟 View Tickets</a>
-                <a href="AttendeeViewProfileServlet.do" class="nav-item">👤 Update Profile</a>
-                <a href="javascript:void(0);" onclick="confirmDelete()" class="nav-item">🗑 Delete Account</a>
+     .dropdown a:hover {
+         background: rgba(255,215,0,0.15);
+     }
+
+     .dropdown-divider {
+         height: 1px;
+         background: #f0f0f0;
+         margin: 6px 0;
+     }
+
+     /* ===================== CONTENT ===================== */
+     .content {
+         padding: 30px 40px;
+     }
+
+     h2 {
+         margin-bottom: 25px;
+         font-weight: 600;
+     }
+
+     /* ===================== GRID ===================== */
+     .event-grid {
+         display: grid;
+         grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+         gap: 24px;
+     }
+
+     /* ===================== CARD ===================== */
+     .event-card {
+         background: white;
+         border-radius: var(--card-radius);
+         overflow: hidden;
+         transition: all 0.25s ease;
+
+         box-shadow:
+             0 4px 12px rgba(0,0,0,0.04),
+             0 1px 3px rgba(0,0,0,0.06);
+     }
+
+     .event-card:hover {
+         transform: translateY(-6px);
+
+         box-shadow:
+             0 12px 30px rgba(0,0,0,0.08),
+             0 4px 12px rgba(0,0,0,0.06);
+     }
+
+     /* ===================== IMAGE ===================== */
+     .event-img {
+         height: 150px;
+         background: linear-gradient(135deg, #000, #222);
+         color: var(--gold);
+         display: flex;
+         align-items: center;
+         justify-content: center;
+         font-weight: 600;
+         letter-spacing: 0.5px;
+     }
+
+     /* ===================== INFO ===================== */
+     .event-info {
+         padding: 18px;
+     }
+
+     .event-info h3 {
+         margin: 0 0 10px;
+         font-size: 1.05rem;
+         font-weight: 600;
+     }
+
+     .event-meta {
+         display: flex;
+         align-items: center;
+         gap: 8px;
+         font-size: 0.85rem;
+         color: #666;
+         margin: 6px 0;
+     }
+
+     /* ===================== PRICE ===================== */
+     .price-tag {
+         display: block;
+         margin-top: 10px;
+         font-weight: 600;
+     }
+
+     /* ===================== BUTTON ===================== */
+     .btn-book {
+         display: block;
+         margin-top: 14px;
+         padding: 10px;
+         text-align: center;
+
+         background: var(--black);
+         color: var(--gold);
+         border-radius: 8px;
+
+         font-size: 0.85rem;
+         letter-spacing: 0.3px;
+         text-decoration: none;
+
+         transition: all 0.25s ease;
+     }
+
+     .btn-book:hover {
+         background: var(--gold);
+         color: var(--black);
+         transform: translateY(-1px);
+     }
+
+     /* ===================== EMPTY ===================== */
+     .empty-state {
+         text-align: center;
+         padding: 80px;
+         color: #999;
+     }
+
+     /* ===================== MOBILE ===================== */
+     @media (max-width: 768px) {
+
+         .content {
+             padding: 20px;
+         }
+
+         .search-bar input {
+             width: 150px;
+         }
+
+         .event-grid {
+             grid-template-columns: 1fr;
+         }
+     }
+    </style>
+</head>
+
+<body>
+
+<div class="topbar">
+    <div class="logo">TICKIFY</div>
+
+    <div class="search-bar">
+        <input type="text" placeholder="Search events..." />
+    </div>
+
+    <div class="profile-menu">
+        <button class="profile-btn" onclick="toggleMenu()">
+            <svg width="24" height="24" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/>
+            </svg>
+        </button>
+
+        <div id="dropdown" class="dropdown">
+
+            <div class="dropdown-header">
+                <strong>${userFullName}</strong>
+                <span>ID: #${userID}</span>
             </div>
-            <a href="LogoutServlet.do" class="logout-btn">LOGOUT</a>
+
+            <a href="AttendeeViewProfileServlet.do">
+                <svg width="18" height="18"><path fill="currentColor" d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5z"/></svg>
+                Profile
+            </a>
+
+            <a href="ViewMyTickets.do">
+                <svg width="18" height="18"><path fill="currentColor" d="M4 6h16v12H4z"/></svg>
+                My Tickets
+            </a>
+
+            <a href="#">
+                <svg width="18" height="18"><path fill="currentColor" d="M19.14 12.94a7.49 7.49 0 0 0 .05-.94 7.49 7.49 0 0 0-.05-.94l2.11-1.65-2-3.46-2.49 1a7.28 7.28 0 0 0-1.63-.94l-.38-2.65H9.25l-.38 2.65a7.28 7.28 0 0 0-1.63.94l-2.49-1-2 3.46 2.11 1.65a7.49 7.49 0 0 0-.05.94 7.49 7.49 0 0 0 .05.94L2.75 14.6l2 3.46 2.49-1c.5.38 1.04.7 1.63.94l.38 2.65h5.5l.38-2.65c.59-.24 1.13-.56 1.63-.94l2.49 1 2-3.46-2.11-1.66z"/></svg>
+                Settings
+            </a>
+
+            <a href="#">
+                <svg width="18" height="18"><path fill="currentColor" d="M12 2a10 10 0 100 20 10 10 0 000-20z"/></svg>
+                Help
+            </a>
+
+            <div class="dropdown-divider"></div>
+
+            <a href="javascript:void(0);" onclick="confirmDelete()">
+                <svg width="18" height="18"><path fill="currentColor" d="M6 7h12l-1 14H7z"/></svg>
+                Delete Account
+            </a>
+
+            <a href="LogoutServlet.do">
+                <svg width="18" height="18"><path fill="currentColor" d="M10 17l-5-5 5-5v3h9v4h-9z"/></svg>
+                Logout
+            </a>
+
         </div>
+    </div>
+</div>
 
-        <div class="main-content">
-            <header>
-                <div class="user-welcome">
-                    <h2>Welcome, ${userFullName}!</h2>
-                    <span style="color:#666">ID: #${userID}</span>
+<div class="content">
+
+    <h2>Available Events</h2>
+
+    <div class="event-grid">
+        <c:choose>
+            <c:when test="${not empty eventList}">
+                <c:forEach var="event" items="${eventList}">
+                    <div class="event-card">
+                        <div class="event-img">${event.type}</div>
+
+                        <div class="event-info">
+                            <h3>${event.name}</h3>
+
+                            <p class="event-meta">
+                                <svg width="16" height="16"><path fill="currentColor" d="M12 2C8 2 5 5 5 9c0 5 7 13 7 13s7-8 7-13c0-4-3-7-7-7z"/></svg>
+                                ${event.venueName}
+                            </p>
+
+                            <p class="event-meta">
+                                <svg width="16" height="16"><path fill="currentColor" d="M7 2h10v20H7z"/></svg>
+                                ${event.date}
+                            </p>
+
+                            <span>
+                                <c:choose>
+                                    <c:when test="${event.price > 0}">
+                                        R ${event.price}
+                                    </c:when>
+                                    <c:otherwise>
+                                        FREE
+                                    </c:otherwise>
+                                </c:choose>
+                            </span>
+
+                            <a href="BookTicket.do?eventID=${event.id}" class="btn-book">Book</a>
+                        </div>
+                    </div>
+                </c:forEach>
+            </c:when>
+
+            <c:otherwise>
+                <div class="empty-state">
+                    No events available
                 </div>
-                <div>📅 <strong>2026</strong></div>
-            </header>
+            </c:otherwise>
+        </c:choose>
+    </div>
 
-            <div class="dashboard-body">
-                <div class="section-title">
-                    <h2>Available Events</h2>
-                </div>
+</div>
 
-                <div class="event-grid">
-                    <c:choose>
-                        <%-- Logic: If the servlet sent 'eventList' and it's not empty --%>
-                        <c:when test="${not empty eventList}">
-                            <c:forEach var="event" items="${eventList}">
-                                <div class="event-card">
-                                    <div class="event-img">
-                                        ${event.type}
-                                    </div>
+<script>
+function toggleMenu() {
+    document.getElementById("dropdown").classList.toggle("show");
+}
 
-                                    <div class="event-info">
-                                        <h3>${event.name}</h3>
+window.onclick = function(e) {
+    if (!e.target.closest('.profile-menu')) {
+        document.getElementById("dropdown").classList.remove("show");
+    }
+}
 
-                                        <p>📍 ${event.venueName} - ${event.address}</p>
+function confirmDelete() {
+    if (confirm("Permanently delete your account?")) {
+        window.location.href = "AttendeeDeleteProfileServlet.do";
+    }
+}
+</script>
 
-                                        <p>📅 ${event.date}</p>
-
-                                        <span class="price-tag">
-                                            <c:choose>
-                                                <c:when test="${event.price > 0}">
-                                                    R ${event.price}
-                                                </c:when>
-                                                <c:otherwise>
-                                                    FREE
-                                                </c:otherwise>
-                                            </c:choose>
-                                        </span>
-
-                                        <a href="BookTicket.do?eventID=${event.id}" class="btn-book">BOOK TICKET</a>
-                                    </div>
-                                </div>
-                            </c:forEach>
-                        </c:when>
-                        <c:otherwise>
-                            <div class="empty-state">
-                                <h3>No events were found in the system.</h3>
-                                <p>If you see this, ensure your Servlet is passing 'eventList' correctly.</p>
-                            </div>
-                        </c:otherwise>
-                    </c:choose>
-                </div>
-
-                <div class="section-title" style="margin-top: 50px;">
-                    <h2>Quick Actions</h2>
-                </div>
-                <div style="display: flex; gap: 20px;">
-                    <a href="AttendeeViewProfileServlet.do" class="quick-actions-update">UPDATE PROFILE</a>
-
-                    <button onclick="confirmDelete()" class="btn-delete-account">DELETE ACCOUNT</button>
-                </div>
-            </div>
-        </div>
-
-        <script>
-            function confirmDelete() {
-                if (confirm("Permanently delete your account?")) {
-                    window.location.href = "AttendeeDeleteProfileServlet.do";
-                }
-            }
-        </script>
-    </body>
+</body>
 </html>
