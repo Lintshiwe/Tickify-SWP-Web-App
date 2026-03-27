@@ -1,8 +1,5 @@
 <svg viewBox="0 0 400 100" xmlns="http://www.w3.org/2000/svg" width="400" height="100">
   <defs>
-    <style>
-      @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;700&display=swap');
-    </style>
     <filter id="tagShadow" x="-10%" y="-10%" width="130%" height="130%">
       <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#C8CDD6" flood-opacity="0.4"/>
     </filter>
@@ -31,7 +28,7 @@
 
   <!-- Wordmark -->
   <text x="108" y="63"
-    font-family="'Sora', sans-serif"
+    font-family="Segoe UI, Trebuchet MS, Arial, sans-serif"
     font-size="40"
     font-weight="400"
     letter-spacing="-2"
