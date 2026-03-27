@@ -115,6 +115,11 @@ public class PaymentGatewayServlet extends HttpServlet {
             }
 
             if (purchased > 0) {
+                try {
+                    attendeeDAO.recordOrderHistory(attendeeId, paymentResult.getTransactionRef(), pending.values(), checkoutTotal);
+                } catch (SQLException historyEx) {
+                    log("Order history persistence failed after successful payment", historyEx);
+                }
                 pending.clear();
                 getOrCreateCart(session).clear();
                 if (purchased < requested) {

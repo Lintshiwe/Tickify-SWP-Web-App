@@ -323,7 +323,23 @@ public class AdminDashboardServlet extends HttpServlet {
         String auditAction = param(request, "auditAction");
         String auditFrom = param(request, "auditFrom");
         String auditTo = param(request, "auditTo");
+        int eventPageSize = parsePageSize(param(request, "eventPageSize"), 10);
+        int eventPage = parsePositiveInt(param(request, "eventPage"), 1);
+        int reconPageSize = parsePageSize(param(request, "reconPageSize"), 10);
+        int reconPage = parsePositiveInt(param(request, "reconPage"), 1);
         Map<String, Object> preview = adminITDAO.getTablePreview(previewTable);
+
+        int eventTotalRows = adminITDAO.countEventControlRowsForScope(adminId);
+        int eventTotalPages = Math.max(1, (int) Math.ceil(eventTotalRows / (double) eventPageSize));
+        if (eventPage > eventTotalPages) {
+            eventPage = eventTotalPages;
+        }
+
+        int reconTotalRows = adminITDAO.countFinancialReconciliationRowsForScope(adminId);
+        int reconTotalPages = Math.max(1, (int) Math.ceil(reconTotalRows / (double) reconPageSize));
+        if (reconPage > reconTotalPages) {
+            reconPage = reconTotalPages;
+        }
 
         request.setAttribute("metrics", adminITDAO.getDashboardMetrics());
         request.setAttribute("admins", adminITDAO.getAdminsForScope(adminId));
@@ -348,8 +364,16 @@ public class AdminDashboardServlet extends HttpServlet {
         request.setAttribute("ticketIntelligence", adminITDAO.getTicketIntelligenceForScope(adminId));
         request.setAttribute("campusRevenue", adminITDAO.getCampusRevenueReportForScope(adminId));
         request.setAttribute("campusOwnership", adminITDAO.getCampusOwnershipReportForScope(adminId));
-        request.setAttribute("reconciliation", adminITDAO.getFinancialReconciliationForScope(adminId));
-        request.setAttribute("eventRows", adminITDAO.getEventControlRowsForScope(adminId));
+        request.setAttribute("reconciliation", adminITDAO.getFinancialReconciliationForScope(adminId, reconPage, reconPageSize));
+        request.setAttribute("eventRows", adminITDAO.getEventControlRowsForScope(adminId, eventPage, eventPageSize));
+        request.setAttribute("eventPage", eventPage);
+        request.setAttribute("eventPageSize", eventPageSize);
+        request.setAttribute("eventTotalRows", eventTotalRows);
+        request.setAttribute("eventTotalPages", eventTotalPages);
+        request.setAttribute("reconPage", reconPage);
+        request.setAttribute("reconPageSize", reconPageSize);
+        request.setAttribute("reconTotalRows", reconTotalRows);
+        request.setAttribute("reconTotalPages", reconTotalPages);
 
         request.setAttribute("previewTable", preview.get("table"));
         request.setAttribute("previewColumns", preview.get("columns"));
@@ -415,6 +439,23 @@ public class AdminDashboardServlet extends HttpServlet {
             return 0;
         }
         return Integer.parseInt(value.trim());
+    }
+
+    private int parsePositiveInt(String value, int fallback) {
+        try {
+            int parsed = Integer.parseInt(value == null ? "" : value.trim());
+            return parsed > 0 ? parsed : fallback;
+        } catch (RuntimeException ex) {
+            return fallback;
+        }
+    }
+
+    private int parsePageSize(String value, int fallback) {
+        int parsed = parsePositiveInt(value, fallback);
+        if (parsed > 100) {
+            return 100;
+        }
+        return parsed;
     }
 
     private boolean isMutationAction(String action) {

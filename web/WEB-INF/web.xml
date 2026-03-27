@@ -120,6 +120,14 @@
         <servlet-name>EventManagerDashboardServlet</servlet-name>
         <servlet-class>za.ac.tut.servlet.EventManagerDashboardServlet</servlet-class>
     </servlet>
+    <servlet>
+        <servlet-name>MyOrderHistoryServlet</servlet-name>
+        <servlet-class>za.ac.tut.servlet.MyOrderHistoryServlet</servlet-class>
+    </servlet>
+    <servlet>
+        <servlet-name>ClientPasswordResetServlet</servlet-name>
+        <servlet-class>za.ac.tut.servlet.ClientPasswordResetServlet</servlet-class>
+    </servlet>
     <servlet-mapping>
         <servlet-name>LoginServlet</servlet-name>
         <url-pattern>/LoginServlet.do</url-pattern>
@@ -207,6 +215,14 @@
     <servlet-mapping>
         <servlet-name>EventManagerDashboardServlet</servlet-name>
         <url-pattern>/EventManagerDashboard.do</url-pattern>
+    </servlet-mapping>
+    <servlet-mapping>
+        <servlet-name>MyOrderHistoryServlet</servlet-name>
+        <url-pattern>/MyOrderHistory.do</url-pattern>
+    </servlet-mapping>
+    <servlet-mapping>
+        <servlet-name>ClientPasswordResetServlet</servlet-name>
+        <url-pattern>/ClientPasswordReset.do</url-pattern>
     </servlet-mapping>
     <error-page>
         <error-code>404</error-code>

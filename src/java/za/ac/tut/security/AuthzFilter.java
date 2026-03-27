@@ -26,8 +26,10 @@ public class AuthzFilter implements Filter {
             "/Login.jsp",
             "/UserSelection.jsp",
             "/UserSignUp.jsp",
+            "/ClientPasswordReset.jsp",
             "/LoginServlet.do",
             "/RegistrationServlet.do",
+            "/ClientPasswordReset.do",
             "/LogoutServlet.do",
             "/AdvertImage.do"
     ));
@@ -95,6 +97,7 @@ public class AuthzFilter implements Filter {
         if (uri.startsWith("/Attendee/") || uri.equals("/AttendeeDashboardServlet.do")
                 || uri.equals("/ViewMyTickets.do") || uri.equals("/AttendeeViewProfileServlet.do")
                 || uri.equals("/AttendeeDeleteProfileServlet.do") || uri.equals("/BookTicket.do")
+                || uri.equals("/MyOrderHistory.do")
                 || uri.equals("/Wishlist.do") || uri.equals("/Checkout.do")
                 || uri.equals("/PaymentGateway.do")) {
             return "ATTENDEE";

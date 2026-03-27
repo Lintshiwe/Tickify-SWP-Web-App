@@ -1,6 +1,7 @@
 <%@page contentType="text/html" pageEncoding="UTF-8"%>
 <%@taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
+<%@taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
 <!DOCTYPE html>
 <html>
 <head>
@@ -56,6 +57,15 @@
         th { background:#f8fbf6; color:#5d6f61; }
         .field { display:flex; flex-direction:column; gap:5px; }
         .field input, .field select { border:1px solid #d8e0d2; border-radius:10px; padding:8px 10px; }
+        .table-pager { margin-top:8px; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; color:var(--muted); }
+        .table-pager .pager-links { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+        .table-pager .pager-size { display:flex; gap:8px; align-items:center; }
+        .table-pager .pager-size select { border:1px solid #d8e0d2; border-radius:8px; padding:5px 8px; background:#fff; }
+        .modal-backdrop { display:none; position:fixed; inset:0; background:rgba(24,34,28,.45); z-index:90; align-items:center; justify-content:center; padding:14px; }
+        .modal-card { width:min(460px,100%); background:#fff; border:1px solid #dbe5d8; border-radius:14px; padding:14px; box-shadow:0 18px 34px rgba(10,18,12,.22); }
+        .modal-card h3 { margin:0 0 8px; }
+        .modal-card p { margin:0 0 12px; color:var(--muted); }
+        .modal-actions { display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
         .root-form-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; align-items:end; }
         .audit-form-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; align-items:end; }
         @media(max-width:980px){ .metrics{grid-template-columns:repeat(2,minmax(0,1fr));} .grid{grid-template-columns:1fr;} .summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));} .root-form-grid{grid-template-columns:1fr 1fr;} .audit-form-grid{grid-template-columns:1fr 1fr;} }
@@ -234,7 +244,7 @@
                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                 <input type="hidden" name="action" value="deleteEvent">
                 <div class="field"><label>Event ID</label><input type="number" name="eventID" min="1" required></div>
-                <div class="field"><button class="btn btn-alt" type="submit">Delete Event</button></div>
+                <div class="field"><button class="btn btn-alt" type="button" onclick="openDeleteEventModal(this.form)">Delete Event</button></div>
             </form>
 
             <div class="table-wrap">
@@ -254,6 +264,29 @@
                         <c:if test="${empty eventRows}"><tr><td colspan="6">No events found for your scope.</td></tr></c:if>
                     </tbody>
                 </table>
+            </div>
+
+            <div class="table-pager">
+                <div>Showing ${fn:length(eventRows)} of ${eventTotalRows} events | Page ${eventPage} of ${eventTotalPages}</div>
+                <div class="pager-links">
+                    <c:if test="${eventPage > 1}">
+                        <a class="btn btn-alt" href="${pageContext.request.contextPath}/AdminDashboard.do?eventPage=${eventPage - 1}&eventPageSize=${eventPageSize}&reconPage=${reconPage}&reconPageSize=${reconPageSize}">Previous</a>
+                    </c:if>
+                    <c:if test="${eventPage < eventTotalPages}">
+                        <a class="btn btn-alt" href="${pageContext.request.contextPath}/AdminDashboard.do?eventPage=${eventPage + 1}&eventPageSize=${eventPageSize}&reconPage=${reconPage}&reconPageSize=${reconPageSize}">Next</a>
+                    </c:if>
+                </div>
+                <form class="pager-size" action="${pageContext.request.contextPath}/AdminDashboard.do" method="GET">
+                    <input type="hidden" name="eventPage" value="1">
+                    <input type="hidden" name="reconPage" value="${reconPage}">
+                    <input type="hidden" name="reconPageSize" value="${reconPageSize}">
+                    <label for="eventPageSize">Rows</label>
+                    <select id="eventPageSize" name="eventPageSize" onchange="this.form.submit()">
+                        <option value="10" <c:if test="${eventPageSize == 10}">selected</c:if>>10</option>
+                        <option value="25" <c:if test="${eventPageSize == 25}">selected</c:if>>25</option>
+                        <option value="50" <c:if test="${eventPageSize == 50}">selected</c:if>>50</option>
+                    </select>
+                </form>
             </div>
         </section>
 
@@ -394,6 +427,29 @@
                     </table>
                 </div>
 
+                <div class="table-pager">
+                    <div>Showing ${fn:length(reconciliation)} of ${reconTotalRows} campuses | Page ${reconPage} of ${reconTotalPages}</div>
+                    <div class="pager-links">
+                        <c:if test="${reconPage > 1}">
+                            <a class="btn btn-alt" href="${pageContext.request.contextPath}/AdminDashboard.do?eventPage=${eventPage}&eventPageSize=${eventPageSize}&reconPage=${reconPage - 1}&reconPageSize=${reconPageSize}">Previous</a>
+                        </c:if>
+                        <c:if test="${reconPage < reconTotalPages}">
+                            <a class="btn btn-alt" href="${pageContext.request.contextPath}/AdminDashboard.do?eventPage=${eventPage}&eventPageSize=${eventPageSize}&reconPage=${reconPage + 1}&reconPageSize=${reconPageSize}">Next</a>
+                        </c:if>
+                    </div>
+                    <form class="pager-size" action="${pageContext.request.contextPath}/AdminDashboard.do" method="GET">
+                        <input type="hidden" name="reconPage" value="1">
+                        <input type="hidden" name="eventPage" value="${eventPage}">
+                        <input type="hidden" name="eventPageSize" value="${eventPageSize}">
+                        <label for="reconPageSize">Rows</label>
+                        <select id="reconPageSize" name="reconPageSize" onchange="this.form.submit()">
+                            <option value="10" <c:if test="${reconPageSize == 10}">selected</c:if>>10</option>
+                            <option value="25" <c:if test="${reconPageSize == 25}">selected</c:if>>25</option>
+                            <option value="50" <c:if test="${reconPageSize == 50}">selected</c:if>>50</option>
+                        </select>
+                    </form>
+                </div>
+
                 <h3>Campus Ownership and Responsibility</h3>
                 <div class="table-wrap">
                     <table>
@@ -464,7 +520,43 @@
         </section>
     </main>
 
+    <div id="deleteEventModal" class="modal-backdrop" onclick="if (event.target === this) { closeDeleteEventModal(); }">
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="deleteEventModalTitle">
+            <h3 id="deleteEventModalTitle">Confirm Event Deletion</h3>
+            <p>This action permanently removes the event. Continue only if you are sure this event ID is correct.</p>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-alt" onclick="closeDeleteEventModal()">Cancel</button>
+                <button type="button" class="btn" onclick="confirmDeleteEvent()">Yes, Delete Event</button>
+            </div>
+        </div>
+    </div>
+
     <script>
+        var pendingDeleteEventForm = null;
+
+        function openDeleteEventModal(form) {
+            pendingDeleteEventForm = form;
+            var modal = document.getElementById("deleteEventModal");
+            if (modal) {
+                modal.style.display = "flex";
+            }
+        }
+
+        function closeDeleteEventModal() {
+            pendingDeleteEventForm = null;
+            var modal = document.getElementById("deleteEventModal");
+            if (modal) {
+                modal.style.display = "none";
+            }
+        }
+
+        function confirmDeleteEvent() {
+            if (pendingDeleteEventForm) {
+                pendingDeleteEventForm.submit();
+            }
+            closeDeleteEventModal();
+        }
+
         function validateRootConfirm(el) {
             var form = el.form;
             if (!form) { return; }
@@ -482,6 +574,11 @@
             if (!menu || !btn) { return; }
             if (!menu.contains(event.target) && !btn.contains(event.target)) {
                 menu.classList.remove("open");
+            }
+        });
+        window.addEventListener("keydown", function (event) {
+            if (event.key === "Escape") {
+                closeDeleteEventModal();
             }
         });
     </script>

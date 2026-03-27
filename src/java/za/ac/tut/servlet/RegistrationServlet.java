@@ -142,6 +142,10 @@ public class RegistrationServlet extends HttpServlet {
         } catch (SQLException e) {
             e.printStackTrace();
             registerAttempt(ipKey);
+            if (userDAO.isUniqueConstraintViolation(e)) {
+                response.sendRedirect(request.getContextPath() + "/UserSignUp.jsp?err=Duplicate");
+                return;
+            }
             // Database Crash: Stay on UserSignUp.jsp
             response.sendRedirect(request.getContextPath() + "/UserSignUp.jsp?err=SQLCrash");
         }

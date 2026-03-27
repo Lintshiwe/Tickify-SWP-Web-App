@@ -8,6 +8,36 @@ public class UserDAO {
 
     private static final String PRIVILEGED_ADMIN_EMAIL = "admin@tickify.ac.za";
 
+    public static class ClientAccount {
+        private final String role;
+        private final int userId;
+        private final String email;
+        private final String passwordHash;
+
+        public ClientAccount(String role, int userId, String email, String passwordHash) {
+            this.role = role;
+            this.userId = userId;
+            this.email = email;
+            this.passwordHash = passwordHash;
+        }
+
+        public String getRole() {
+            return role;
+        }
+
+        public int getUserId() {
+            return userId;
+        }
+
+        public String getEmail() {
+            return email;
+        }
+
+        public String getPasswordHash() {
+            return passwordHash;
+        }
+    }
+
     private boolean supportsUsernameByRole(String role) {
         if (role == null) {
             return false;
@@ -33,6 +63,79 @@ public class UserDAO {
             default:
                 return null;
         }
+    }
+
+    private String normalizeClientRole(String role) {
+        if (role == null) {
+            return null;
+        }
+        String normalized = role.trim().toUpperCase();
+        if ("PRESENTER".equals(normalized)) {
+            return "TERTIARY_PRESENTER";
+        }
+        return normalized;
+    }
+
+    public boolean isClientRole(String role) {
+        String normalized = normalizeClientRole(role);
+        return "ATTENDEE".equals(normalized) || "TERTIARY_PRESENTER".equals(normalized);
+    }
+
+    public ClientAccount findClientByIdentifier(String role, String identifier) throws SQLException {
+        String normalizedRole = normalizeClientRole(role);
+        if (!isClientRole(normalizedRole) || identifier == null || identifier.trim().isEmpty()) {
+            return null;
+        }
+        String table = tableForRole(normalizedRole);
+        String idCol = idColumnForRole(normalizedRole);
+        String sql = "SELECT " + idCol + " AS userId, email, password FROM " + table
+                + " WHERE LOWER(email)=LOWER(?) OR LOWER(username)=LOWER(?) FETCH FIRST ROW ONLY";
+
+        return executeSingleQuery(sql,
+                rs -> new ClientAccount(normalizedRole, rs.getInt("userId"), rs.getString("email"), rs.getString("password")),
+                identifier, identifier);
+    }
+
+    public ClientAccount findClientByRoleAndId(String role, int userId) throws SQLException {
+        String normalizedRole = normalizeClientRole(role);
+        if (!isClientRole(normalizedRole) || userId <= 0) {
+            return null;
+        }
+        String table = tableForRole(normalizedRole);
+        String idCol = idColumnForRole(normalizedRole);
+        String sql = "SELECT " + idCol + " AS userId, email, password FROM " + table + " WHERE " + idCol + " = ?";
+
+        return executeSingleQuery(sql,
+                rs -> new ClientAccount(normalizedRole, rs.getInt("userId"), rs.getString("email"), rs.getString("password")),
+                userId);
+    }
+
+    public boolean updateClientPassword(String role, int userId, String newPasswordHash) throws SQLException {
+        String normalizedRole = normalizeClientRole(role);
+        if (!isClientRole(normalizedRole) || userId <= 0 || newPasswordHash == null || newPasswordHash.trim().isEmpty()) {
+            return false;
+        }
+        String table = tableForRole(normalizedRole);
+        String idCol = idColumnForRole(normalizedRole);
+        String sql = "UPDATE " + table + " SET password = ? WHERE " + idCol + " = ?";
+
+        try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, newPasswordHash);
+            ps.setInt(2, userId);
+            return ps.executeUpdate() > 0;
+        }
+    }
+
+    public boolean isUniqueConstraintViolation(SQLException ex) {
+        SQLException current = ex;
+        while (current != null) {
+            String state = current.getSQLState();
+            if ("23505".equals(state)) {
+                return true;
+            }
+            current = current.getNextException();
+        }
+        return false;
     }
 
     private String idColumnForRole(String chosenRole) {

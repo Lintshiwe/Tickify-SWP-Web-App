@@ -9,6 +9,7 @@ import java.time.LocalDate;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -193,6 +194,124 @@ public class AttendeeDAO {
             }
         }
         return tickets;
+    }
+
+    public boolean recordOrderHistory(int attendeeID, String transactionRef, java.util.Collection<Map<String, Object>> cartItems, double totalAmount) throws SQLException {
+        if (attendeeID <= 0 || cartItems == null || cartItems.isEmpty()) {
+            return false;
+        }
+
+        String insertOrderSql = "INSERT INTO attendee_order(attendeeID, transactionRef, totalAmount, status, createdAt) VALUES(?,?,?,?,CURRENT_TIMESTAMP)";
+        String insertItemSql = "INSERT INTO attendee_order_item(orderID, eventID, quantity, unitPrice, lineTotal) VALUES(?,?,?,?,?)";
+
+        Connection conn = null;
+        try {
+            conn = DatabaseConnection.getConnection();
+            conn.setAutoCommit(false);
+
+            int orderId;
+            try (PreparedStatement ps = conn.prepareStatement(insertOrderSql, Statement.RETURN_GENERATED_KEYS)) {
+                ps.setInt(1, attendeeID);
+                ps.setString(2, transactionRef);
+                ps.setBigDecimal(3, BigDecimal.valueOf(totalAmount));
+                ps.setString(4, "PAID");
+                ps.executeUpdate();
+                try (ResultSet rs = ps.getGeneratedKeys()) {
+                    if (!rs.next()) {
+                        throw new SQLException("Unable to create attendee order");
+                    }
+                    orderId = rs.getInt(1);
+                }
+            }
+
+            try (PreparedStatement ps = conn.prepareStatement(insertItemSql)) {
+                for (Map<String, Object> item : cartItems) {
+                    int eventId = toInt(item.get("eventID"));
+                    int quantity = toInt(item.get("quantity"));
+                    double unitPrice = toDouble(item.get("price"));
+                    if (eventId <= 0 || quantity <= 0) {
+                        continue;
+                    }
+                    double lineTotal = quantity * unitPrice;
+                    ps.setInt(1, orderId);
+                    ps.setInt(2, eventId);
+                    ps.setInt(3, quantity);
+                    ps.setBigDecimal(4, BigDecimal.valueOf(unitPrice));
+                    ps.setBigDecimal(5, BigDecimal.valueOf(lineTotal));
+                    ps.addBatch();
+                }
+                ps.executeBatch();
+            }
+
+            conn.commit();
+            return true;
+        } catch (SQLException ex) {
+            if (conn != null) {
+                conn.rollback();
+            }
+            throw ex;
+        } finally {
+            if (conn != null) {
+                conn.close();
+            }
+        }
+    }
+
+    public List<Map<String, Object>> getAttendeeOrderHistory(int attendeeID) throws SQLException {
+        List<Map<String, Object>> orders = new ArrayList<>();
+        if (attendeeID <= 0) {
+            return orders;
+        }
+
+        String sql = "SELECT o.orderID, o.transactionRef, o.totalAmount, o.status, o.createdAt, "
+                + "i.orderItemID, i.eventID, i.quantity, i.unitPrice, i.lineTotal, "
+                + "e.name AS eventName, e.type AS eventType, e.date AS eventDate, v.name AS venueName "
+                + "FROM attendee_order o "
+                + "JOIN attendee_order_item i ON i.orderID = o.orderID "
+                + "LEFT JOIN event e ON e.eventID = i.eventID "
+                + "LEFT JOIN venue v ON v.venueID = e.venueID "
+                + "WHERE o.attendeeID = ? "
+                + "ORDER BY o.createdAt DESC, o.orderID DESC, i.orderItemID ASC";
+
+        Map<Integer, Map<String, Object>> grouped = new LinkedHashMap<>();
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, attendeeID);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    int orderId = rs.getInt("orderID");
+                    Map<String, Object> order = grouped.get(orderId);
+                    if (order == null) {
+                        order = new HashMap<>();
+                        order.put("orderID", orderId);
+                        order.put("transactionRef", rs.getString("transactionRef"));
+                        order.put("totalAmount", rs.getBigDecimal("totalAmount"));
+                        order.put("status", rs.getString("status"));
+                        order.put("createdAt", rs.getTimestamp("createdAt"));
+                        order.put("items", new ArrayList<Map<String, Object>>());
+                        grouped.put(orderId, order);
+                    }
+
+                    Map<String, Object> item = new HashMap<>();
+                    item.put("orderItemID", rs.getInt("orderItemID"));
+                    item.put("eventID", rs.getInt("eventID"));
+                    item.put("eventName", rs.getString("eventName"));
+                    item.put("eventType", rs.getString("eventType"));
+                    item.put("eventDate", rs.getTimestamp("eventDate"));
+                    item.put("venueName", rs.getString("venueName"));
+                    item.put("quantity", rs.getInt("quantity"));
+                    item.put("unitPrice", rs.getBigDecimal("unitPrice"));
+                    item.put("lineTotal", rs.getBigDecimal("lineTotal"));
+
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> items = (List<Map<String, Object>>) order.get("items");
+                    items.add(item);
+                }
+            }
+        }
+
+        orders.addAll(grouped.values());
+        return orders;
     }
 
     public int generateAndAssignUniqueTickets(int attendeeID, int eventID, int quantity, double unitPrice) throws SQLException {
@@ -785,6 +904,34 @@ public boolean deleteAttendee(int id) throws SQLException {
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }
+        }
+    }
+
+    private int toInt(Object value) {
+        if (value == null) {
+            return 0;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        try {
+            return Integer.parseInt(String.valueOf(value).trim());
+        } catch (RuntimeException ex) {
+            return 0;
+        }
+    }
+
+    private double toDouble(Object value) {
+        if (value == null) {
+            return 0.0;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
+        }
+        try {
+            return Double.parseDouble(String.valueOf(value).trim());
+        } catch (RuntimeException ex) {
+            return 0.0;
         }
     }
 }

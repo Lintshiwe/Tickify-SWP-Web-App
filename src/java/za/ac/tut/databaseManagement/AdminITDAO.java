@@ -195,6 +195,45 @@ public class AdminITDAO {
                 + "WHERE e.venueID = ? ORDER BY e.date DESC", Arrays.<Object>asList(campusVenueId));
     }
 
+    public int countEventControlRowsForScope(int adminId) throws SQLException {
+        if (isPrivilegedAdmin(adminId)) {
+            try (Connection conn = DatabaseConnection.getConnection()) {
+                return queryInt(conn, "SELECT COUNT(*) FROM event");
+            }
+        }
+        Integer campusVenueId = getAdminCampusVenueId(adminId);
+        if (campusVenueId == null || campusVenueId <= 0) {
+            return 0;
+        }
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement ps = conn.prepareStatement("SELECT COUNT(*) FROM event WHERE venueID = ?")) {
+            ps.setInt(1, campusVenueId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+        }
+    }
+
+    public List<Map<String, Object>> getEventControlRowsForScope(int adminId, int page, int pageSize) throws SQLException {
+        int safePage = page <= 0 ? 1 : page;
+        int safePageSize = pageSize <= 0 ? 10 : pageSize;
+        int offset = (safePage - 1) * safePageSize;
+        if (isPrivilegedAdmin(adminId)) {
+            return runListQuery("SELECT e.eventID, e.name, e.type, e.date, e.venueID, v.name AS campusName, v.address AS campusAddress "
+                    + "FROM event e LEFT JOIN venue v ON v.venueID = e.venueID "
+                    + "ORDER BY e.date DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY",
+                    Arrays.<Object>asList(offset, safePageSize));
+        }
+        Integer campusVenueId = getAdminCampusVenueId(adminId);
+        if (campusVenueId == null || campusVenueId <= 0) {
+            return new ArrayList<>();
+        }
+        return runListQuery("SELECT e.eventID, e.name, e.type, e.date, e.venueID, v.name AS campusName, v.address AS campusAddress "
+                + "FROM event e LEFT JOIN venue v ON v.venueID = e.venueID "
+                + "WHERE e.venueID = ? ORDER BY e.date DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY",
+                Arrays.<Object>asList(campusVenueId, offset, safePageSize));
+    }
+
     public boolean createEvent(int adminId, String name, String type, Timestamp eventDate, int venueId) throws SQLException {
         if (name == null || name.trim().isEmpty() || type == null || type.trim().isEmpty() || eventDate == null || venueId <= 0) {
             throw new SQLException("MissingFields");
@@ -1144,6 +1183,77 @@ public class AdminITDAO {
             params.add(campusVenueId);
         }
         sql.append(" GROUP BY v.venueID, v.name ORDER BY v.name ASC");
+
+        List<Map<String, Object>> rows = runListQuery(sql.toString(), params);
+        for (Map<String, Object> row : rows) {
+            int sold = toInt(row.get("soldTickets"));
+            int validated = toInt(row.get("validatedTickets"));
+            double recorded = toDouble(row.get("recordedRevenue"));
+            double validatedRevenue = toDouble(row.get("validatedRevenue"));
+            row.put("ticketDelta", sold - validated);
+            row.put("revenueDelta", round2(recorded - validatedRevenue));
+            row.put("status", (sold - validated == 0 && Math.abs(recorded - validatedRevenue) < 0.01) ? "BALANCED" : "REVIEW_REQUIRED");
+        }
+        return rows;
+    }
+
+    public int countFinancialReconciliationRowsForScope(int adminId) throws SQLException {
+        boolean privileged = isPrivilegedAdmin(adminId);
+        Integer campusVenueId = getAdminCampusVenueId(adminId);
+        if (!privileged && (campusVenueId == null || campusVenueId <= 0)) {
+            return 0;
+        }
+
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            if (privileged) {
+                return queryInt(conn, "SELECT COUNT(*) FROM venue");
+            }
+            try (PreparedStatement ps = conn.prepareStatement("SELECT COUNT(*) FROM venue WHERE venueID = ?")) {
+                ps.setInt(1, campusVenueId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    return rs.next() ? rs.getInt(1) : 0;
+                }
+            }
+        }
+    }
+
+    public List<Map<String, Object>> getFinancialReconciliationForScope(int adminId, int page, int pageSize) throws SQLException {
+        int safePage = page <= 0 ? 1 : page;
+        int safePageSize = pageSize <= 0 ? 10 : pageSize;
+        int offset = (safePage - 1) * safePageSize;
+        boolean privileged = isPrivilegedAdmin(adminId);
+        Integer campusVenueId = getAdminCampusVenueId(adminId);
+        if (!privileged && (campusVenueId == null || campusVenueId <= 0)) {
+            return new ArrayList<>();
+        }
+
+        StringBuilder sql = new StringBuilder(
+                "SELECT v.venueID, v.name AS campusName, "
+                + "COUNT(DISTINCT aht.ticketID) AS soldTickets, "
+                + "COALESCE(SUM(t.price), 0) AS recordedRevenue, "
+                + "COALESCE((SELECT COUNT(DISTINCT s.ticketID) FROM scan_log s "
+                + "JOIN event_has_ticket eht2 ON eht2.ticketID = s.ticketID "
+                + "JOIN event e2 ON e2.eventID = eht2.eventID "
+                + "WHERE s.result = 'VALID' AND e2.venueID = v.venueID), 0) AS validatedTickets, "
+                + "COALESCE((SELECT SUM(t2.price) FROM scan_log s2 "
+                + "JOIN ticket t2 ON t2.ticketID = s2.ticketID "
+                + "JOIN event_has_ticket eht3 ON eht3.ticketID = s2.ticketID "
+                + "JOIN event e3 ON e3.eventID = eht3.eventID "
+                + "WHERE s2.result = 'VALID' AND e3.venueID = v.venueID), 0) AS validatedRevenue "
+                + "FROM venue v "
+                + "LEFT JOIN event e ON e.venueID = v.venueID "
+                + "LEFT JOIN event_has_ticket eht ON eht.eventID = e.eventID "
+                + "LEFT JOIN attendee_has_ticket aht ON aht.ticketID = eht.ticketID "
+                + "LEFT JOIN ticket t ON t.ticketID = aht.ticketID "
+                + "WHERE 1=1");
+        List<Object> params = new ArrayList<>();
+        if (!privileged) {
+            sql.append(" AND v.venueID = ?");
+            params.add(campusVenueId);
+        }
+        sql.append(" GROUP BY v.venueID, v.name ORDER BY v.name ASC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY");
+        params.add(offset);
+        params.add(safePageSize);
 
         List<Map<String, Object>> rows = runListQuery(sql.toString(), params);
         for (Map<String, Object> row : rows) {

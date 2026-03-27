@@ -60,6 +60,8 @@
                 <% String msg = request.getParameter("msg"); %>
                 <% if ("RegSuccess".equals(msg)) { %>
                     <div class="status">Registration successful. You can now sign in.</div>
+                <% } else if ("ResetSuccess".equals(msg)) { %>
+                    <div class="status">Password reset successful. Sign in with your new password.</div>
                 <% } %>
                 <% if(request.getAttribute("error") != null) { %>
                     <div class="error"><%= request.getAttribute("error") %></div>
@@ -78,6 +80,9 @@
                     <div class="input-group"><label id="passLabel" for="passwordField">Password</label><input type="password" name="password" id="passwordField" autocomplete="current-password" required></div>
                     <button type="submit" class="btn-login">ACCESS PORTAL</button>
                 </form>
+                <div style="margin-top:10px;text-align:right;">
+                    <a class="back-link" href="ClientPasswordReset.jsp">Forgot attendee/presenter password?</a>
+                </div>
                 <a class="back-link" href="UserSelection.jsp">&larr; Back to selection</a>
             </div>
         </main>

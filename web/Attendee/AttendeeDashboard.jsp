@@ -842,6 +842,7 @@
                     <div class="profile-menu" id="profileMenu">
                         <a href="AttendeeDashboardServlet.do">Dashboard</a>
                         <a href="ViewMyTickets.do">My Tickets</a>
+                        <a href="MyOrderHistory.do">My Order History</a>
                         <a href="AttendeeViewProfileServlet.do">Update Profile</a>
                         <a href="javascript:void(0);" onclick="confirmDelete()">Delete Account</a>
                         <a href="LogoutServlet.do" class="danger">Logout</a>
@@ -853,6 +854,7 @@
                 <div class="nav-links">
                     <a href="#allSection" onclick="switchView('all');return false;">EVENTS</a>
                     <a href="ViewMyTickets.do">MY TICKETS</a>
+                    <a href="MyOrderHistory.do">MY ORDER HISTORY</a>
                     <a href="#wishlistSection" onclick="switchView('wishlist')">MY LIKES</a>
                 </div>
                 <div class="cart-wrap">

@@ -21,6 +21,7 @@ public class DatabaseInitializer {
         try (Connection conn = DatabaseConnection.getConnection()) {
             createTables(conn);
             ensureClientProfileColumns(conn);
+            ensureUniqueClientUsernameIndexes(conn);
             ensureRootPasswordConfig(conn);
             seedData(conn);
             ensureAdditionalCampusAttendees(conn, 100);
@@ -350,6 +351,35 @@ public class DatabaseInitializer {
                 "  imageMimeType       VARCHAR(100)," +
                 "  imageData           BLOB," +
                 "  createdAt           TIMESTAMP NOT NULL" +
+                ")"
+            );
+        }
+
+        if (!tableExists(conn, "ATTENDEE_ORDER")) {
+            st.execute(
+                "CREATE TABLE attendee_order (" +
+                "  orderID          INT NOT NULL GENERATED ALWAYS AS IDENTITY PRIMARY KEY," +
+                "  attendeeID       INT NOT NULL," +
+                "  transactionRef   VARCHAR(120)," +
+                "  totalAmount      DECIMAL(10,2) NOT NULL," +
+                "  status           VARCHAR(24) NOT NULL," +
+                "  createdAt        TIMESTAMP NOT NULL," +
+                "  FOREIGN KEY (attendeeID) REFERENCES attendee(attendeeID)" +
+                ")"
+            );
+        }
+
+        if (!tableExists(conn, "ATTENDEE_ORDER_ITEM")) {
+            st.execute(
+                "CREATE TABLE attendee_order_item (" +
+                "  orderItemID       INT NOT NULL GENERATED ALWAYS AS IDENTITY PRIMARY KEY," +
+                "  orderID           INT NOT NULL," +
+                "  eventID           INT NOT NULL," +
+                "  quantity          INT NOT NULL," +
+                "  unitPrice         DECIMAL(10,2) NOT NULL," +
+                "  lineTotal         DECIMAL(10,2) NOT NULL," +
+                "  FOREIGN KEY (orderID) REFERENCES attendee_order(orderID)," +
+                "  FOREIGN KEY (eventID) REFERENCES event(eventID)" +
                 ")"
             );
         }
@@ -695,6 +725,38 @@ public class DatabaseInitializer {
                 st.executeUpdate("UPDATE tertiary_presenter SET tertiaryInstitution = 'Unspecified' WHERE tertiaryInstitution IS NULL OR TRIM(tertiaryInstitution) = ''");
                 st.executeUpdate("UPDATE tertiary_presenter SET phoneNumber = '0000000000' WHERE phoneNumber IS NULL OR TRIM(phoneNumber) = ''");
                 st.executeUpdate("UPDATE tertiary_presenter SET biography = 'Auto-filled legacy profile for account completeness.' WHERE biography IS NULL OR TRIM(biography) = ''");
+            }
+        }
+    }
+
+    private static void ensureUniqueClientUsernameIndexes(Connection conn) throws SQLException {
+        if (tableExists(conn, "ATTENDEE") && !hasDuplicateNonBlankValues(conn, "attendee", "username")) {
+            createUniqueIndexIfPossible(conn, "uq_attendee_username", "attendee", "username");
+        }
+        if (tableExists(conn, "TERTIARY_PRESENTER") && !hasDuplicateNonBlankValues(conn, "tertiary_presenter", "username")) {
+            createUniqueIndexIfPossible(conn, "uq_presenter_username", "tertiary_presenter", "username");
+        }
+    }
+
+    private static boolean hasDuplicateNonBlankValues(Connection conn, String table, String column) throws SQLException {
+        String sql = "SELECT " + column + " FROM " + table
+                + " WHERE " + column + " IS NOT NULL AND TRIM(" + column + ") <> ''"
+                + " GROUP BY " + column + " HAVING COUNT(*) > 1";
+        try (Statement st = conn.createStatement(); ResultSet rs = st.executeQuery(sql)) {
+            return rs.next();
+        }
+    }
+
+    private static void createUniqueIndexIfPossible(Connection conn, String indexName, String table, String column) {
+        String sql = "CREATE UNIQUE INDEX " + indexName + " ON " + table + "(" + column + ")";
+        try (Statement st = conn.createStatement()) {
+            st.execute(sql);
+        } catch (SQLException ex) {
+            String state = ex.getSQLState() == null ? "" : ex.getSQLState();
+            String message = ex.getMessage() == null ? "" : ex.getMessage().toLowerCase();
+            boolean indexExists = "X0Y32".equals(state) || message.contains("already exists") || message.contains("duplicate");
+            if (!indexExists) {
+                System.err.println("Unable to create unique index " + indexName + ": " + ex.getMessage());
             }
         }
     }

@@ -74,6 +74,25 @@ Optional connection settings (if not provided):
 - `TICKIFY_DB_PORT` (default: `1527`)
 - `TICKIFY_DB_NAME` (default: `tickifyDB`)
 
+## Password Reset Email Delivery
+
+Client password reset links are now delivered by email (not shown on-screen).
+
+Configure SMTP via environment variables or JVM properties:
+
+- `TICKIFY_SMTP_HOST` or `-Dtickify.smtp.host=...`
+- `TICKIFY_SMTP_PORT` or `-Dtickify.smtp.port=...` (default: `587`)
+- `TICKIFY_SMTP_USER` or `-Dtickify.smtp.user=...`
+- `TICKIFY_SMTP_PASSWORD` or `-Dtickify.smtp.password=...`
+- `TICKIFY_SMTP_FROM` or `-Dtickify.smtp.from=...`
+- `TICKIFY_SMTP_STARTTLS` or `-Dtickify.smtp.starttls=true|false` (default: `true`)
+- `TICKIFY_SMTP_SSL` or `-Dtickify.smtp.ssl=true|false` (default: `false`)
+
+Branding and link generation settings:
+
+- `TICKIFY_APP_BASE_URL` or `-Dtickify.app.baseUrl=...` for absolute reset links in email.
+- `TICKIFY_LOGO_URL` or `-Dtickify.logo.url=...` for the logo rendered in the email template.
+
 ## Project Context
 
 This repository contains the Java EE implementation for the web platform, including servlets, DAO classes, entities, and JSP-based views for the different user roles.
