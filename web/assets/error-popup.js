@@ -1,4 +1,72 @@
 (function () {
+    var STORAGE_KEY_PREFIX = "tk_scroll_pos:";
+
+    function pageKey() {
+        return STORAGE_KEY_PREFIX + window.location.pathname + window.location.search;
+    }
+
+    function saveScrollPosition() {
+        try {
+            sessionStorage.setItem(pageKey(), String(window.scrollY || window.pageYOffset || 0));
+        } catch (e) {
+            // Ignore storage errors (privacy mode, quota, etc.)
+        }
+    }
+
+    function restoreScrollPosition() {
+        var raw;
+        try {
+            raw = sessionStorage.getItem(pageKey());
+        } catch (e) {
+            raw = null;
+        }
+        if (raw === null || raw === undefined) {
+            return;
+        }
+
+        var y = parseInt(raw, 10);
+        if (isNaN(y) || y < 0) {
+            return;
+        }
+
+        // Prevent jump-to-top on refresh/back navigation.
+        window.requestAnimationFrame(function () {
+            window.scrollTo({ top: y, left: 0, behavior: "auto" });
+        });
+        setTimeout(function () {
+            window.scrollTo({ top: y, left: 0, behavior: "auto" });
+        }, 80);
+    }
+
+    if ("scrollRestoration" in history) {
+        history.scrollRestoration = "manual";
+    }
+
+    // Keep manual scrolling smooth across pages.
+    document.documentElement.style.scrollBehavior = "smooth";
+
+    var saveScheduled = false;
+    window.addEventListener("scroll", function () {
+        if (saveScheduled) {
+            return;
+        }
+        saveScheduled = true;
+        window.requestAnimationFrame(function () {
+            saveScheduled = false;
+            saveScrollPosition();
+        });
+    }, { passive: true });
+
+    window.addEventListener("beforeunload", saveScrollPosition);
+    window.addEventListener("pagehide", saveScrollPosition);
+    window.addEventListener("pageshow", restoreScrollPosition);
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", restoreScrollPosition);
+    } else {
+        restoreScrollPosition();
+    }
+
     var params = new URLSearchParams(window.location.search || "");
     if (params.get("suppressErrorPopup") === "1") {
         return;
