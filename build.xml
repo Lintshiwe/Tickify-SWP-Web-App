@@ -10,6 +10,20 @@
 <project name="Tickify-SWP-Web-App" default="default" basedir=".">
     <description>Builds, tests, and runs the project Tickify-SWP-Web-App.</description>
     <import file="nbproject/build-impl.xml"/>
+
+    <property name="derby.classpath" value="${user.home}/GlassFish_Server/javadb/lib/derby.jar:${user.home}/GlassFish_Server/javadb/lib/derbyclient.jar"/>
+    <property name="mail.classpath" value="${user.home}/GlassFish_Server/glassfish/modules/javax.mail.jar:${user.home}/GlassFish_Server/glassfish/modules/javamail-runtime.jar:${user.home}/GlassFish_Server/glassfish/modules/javamail-connector.jar"/>
+
+    <target name="reliability-check" depends="compile,test,run" description="Compile, deploy, and run reliability suite">
+        <java classname="za.ac.tut.integration.ReliabilitySuite" fork="true" failonerror="true">
+            <classpath>
+                <pathelement path="${build.test.classes.dir}"/>
+                <pathelement path="${build.classes.dir}"/>
+                <pathelement path="${derby.classpath}"/>
+                <pathelement path="${mail.classpath}"/>
+            </classpath>
+        </java>
+    </target>
     <!--
 
     There exist several targets which are by default empty and which can be 

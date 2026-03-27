@@ -1,7 +1,12 @@
 package za.ac.tut.servlet;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -61,6 +66,54 @@ public class EventManagerDashboardServlet extends HttpServlet {
         }
     }
 
+        @Override
+        protected void doPost(HttpServletRequest request, HttpServletResponse response)
+                        throws ServletException, IOException {
+                Object userIdObj = request.getSession().getAttribute("userID");
+                int eventManagerId = userIdObj instanceof Integer ? (Integer) userIdObj : 0;
+                if (eventManagerId <= 0) {
+                        response.sendRedirect(request.getContextPath() + "/Login.jsp?err=SessionExpired");
+                        return;
+                }
+
+                String action = param(request, "action");
+                try {
+                        if ("updateAssignedEvent".equals(action)) {
+                                String eventName = requireText(req(request, "eventName"), 3, 120, "InvalidEventName");
+                                String eventType = requireText(req(request, "eventType"), 2, 80, "InvalidEventType");
+                                boolean ok = dao.updateAssignedEventDetails(
+                                                eventManagerId,
+                                                parsePositiveInt(req(request, "eventID"), "InvalidEventId"),
+                                                eventName,
+                                                eventType,
+                                                parseDateTimeLocal(req(request, "eventDate"))
+                                );
+                                response.sendRedirect(request.getContextPath() + "/EventManagerDashboard.do?msg=" + (ok ? "EventUpdated" : "NoChange"));
+                                return;
+                        }
+
+                        if ("createTicketTier".equals(action)) {
+                                String tierName = requireText(req(request, "tierName"), 2, 80, "InvalidTierName");
+                                boolean ok = dao.addTicketTierForAssignedEvent(
+                                                eventManagerId,
+                                                parsePositiveInt(req(request, "eventID"), "InvalidEventId"),
+                                                tierName,
+                                                parsePositivePrice(req(request, "tierPrice"), "InvalidTierPrice"),
+                                                parsePositiveInt(req(request, "tierQuantity"), "InvalidTierQuantity")
+                                );
+                                response.sendRedirect(request.getContextPath() + "/EventManagerDashboard.do?msg=" + (ok ? "TierCreated" : "NoChange"));
+                                return;
+                        }
+
+                        response.sendRedirect(request.getContextPath() + "/EventManagerDashboard.do?err=UnknownAction");
+                } catch (IllegalArgumentException ex) {
+                        response.sendRedirect(request.getContextPath() + "/EventManagerDashboard.do?err=" + ex.getMessage());
+                } catch (Exception ex) {
+                        log("Manager dashboard update failed", ex);
+                        response.sendRedirect(request.getContextPath() + "/EventManagerDashboard.do?err=OperationFailed");
+                }
+        }
+
     private List<Map<String, Object>> buildPlanningItems(int eventsWithoutTickets, int guardsWithoutScans,
             int presentersWithoutEvent) {
         List<Map<String, Object>> items = new ArrayList<>();
@@ -103,4 +156,62 @@ public class EventManagerDashboardServlet extends HttpServlet {
         row.put("state", state);
         return row;
     }
+
+        private String param(HttpServletRequest request, String key) {
+                String value = request.getParameter(key);
+                return value == null ? null : value.trim();
+        }
+
+        private String req(HttpServletRequest request, String key) {
+                String value = param(request, key);
+                if (value == null || value.isEmpty()) {
+                        throw new IllegalArgumentException("Missing " + key);
+                }
+                return value;
+        }
+
+        private int parseInt(String value) {
+                return Integer.parseInt(value.trim());
+        }
+
+        private int parsePositiveInt(String value, String errCode) {
+                try {
+                        int parsed = Integer.parseInt(value.trim());
+                        if (parsed <= 0) {
+                                throw new IllegalArgumentException(errCode);
+                        }
+                        return parsed;
+                } catch (NumberFormatException ex) {
+                        throw new IllegalArgumentException(errCode);
+                }
+        }
+
+        private BigDecimal parsePositivePrice(String value, String errCode) {
+                try {
+                        BigDecimal parsed = new BigDecimal(value.trim());
+                        if (parsed.compareTo(BigDecimal.ZERO) <= 0) {
+                                throw new IllegalArgumentException(errCode);
+                        }
+                        return parsed;
+                } catch (NumberFormatException ex) {
+                        throw new IllegalArgumentException(errCode);
+                }
+        }
+
+        private String requireText(String value, int min, int max, String errCode) {
+                String clean = value == null ? "" : value.trim();
+                if (clean.length() < min || clean.length() > max) {
+                        throw new IllegalArgumentException(errCode);
+                }
+                return clean;
+        }
+
+        private Timestamp parseDateTimeLocal(String value) {
+                try {
+                        LocalDateTime dateTime = LocalDateTime.parse(value.trim(), DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm"));
+                        return Timestamp.valueOf(dateTime);
+                } catch (DateTimeParseException ex) {
+                        throw new IllegalArgumentException("InvalidEventDate");
+                }
+        }
 }

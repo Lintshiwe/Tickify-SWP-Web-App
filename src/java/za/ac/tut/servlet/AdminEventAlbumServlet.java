@@ -6,6 +6,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.sql.SQLException;
 import java.util.List;
 import javax.imageio.ImageIO;
@@ -64,7 +65,7 @@ public class AdminEventAlbumServlet extends HttpServlet {
 
         byte[] imageBytes;
         try {
-            imageBytes = imagePart.getInputStream().readAllBytes();
+            imageBytes = readBytes(imagePart.getInputStream());
         } catch (IOException e) {
             response.sendRedirect(request.getContextPath() + "/AdminEventAlbum.do?err=ImageRead");
             return;
@@ -142,5 +143,15 @@ public class AdminEventAlbumServlet extends HttpServlet {
         String format = (mimeType != null && mimeType.toLowerCase().contains("png")) ? "png" : "jpg";
         ImageIO.write(resized, format, out);
         return out.toByteArray();
+    }
+
+    private byte[] readBytes(InputStream input) throws IOException {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        byte[] buffer = new byte[8192];
+        int read;
+        while ((read = input.read(buffer)) != -1) {
+            output.write(buffer, 0, read);
+        }
+        return output.toByteArray();
     }
 }

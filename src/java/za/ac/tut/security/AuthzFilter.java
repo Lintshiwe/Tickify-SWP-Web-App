@@ -129,6 +129,9 @@ public class AuthzFilter implements Filter {
         if (uri.startsWith("/VenueGuard/")) {
             return "VENUE_GUARD";
         }
+        if (uri.equals("/VenueGuardAttendees.do")) {
+            return "VENUE_GUARD";
+        }
         if (uri.equals("/ValidateTicketServlet.do")) {
             return "VENUE_GUARD";
         }

@@ -1675,6 +1675,239 @@ public class AdminITDAO {
         }
     }
 
+    public boolean createEventProposal(int adminId, String eventName, String eventType, Timestamp eventDate,
+            int venueId, String notes) throws SQLException {
+        if (adminId <= 0 || venueId <= 0 || eventDate == null
+                || eventName == null || eventName.trim().isEmpty()
+                || eventType == null || eventType.trim().isEmpty()) {
+            throw new SQLException("MissingFields");
+        }
+        if (!hasCampusAccessForRoleMutation(adminId, "VENUE_GUARD", null, null, venueId, null)) {
+            throw new SQLException("CampusScopeDenied");
+        }
+
+        String sql = "INSERT INTO event_proposal(submittedByAdminID, venueID, eventName, eventType, eventDate, notes, status, createdAt) "
+                + "VALUES(?,?,?,?,?,?,?,CURRENT_TIMESTAMP)";
+        try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, adminId);
+            ps.setInt(2, venueId);
+            ps.setString(3, eventName.trim());
+            ps.setString(4, eventType.trim());
+            ps.setTimestamp(5, eventDate);
+            ps.setString(6, notes == null ? null : notes.trim());
+            ps.setString(7, "PENDING");
+            int affected = ps.executeUpdate();
+            if (affected > 0) {
+                logAudit(conn, adminId, "CREATE_EVENT_PROPOSAL", "event_proposal", "-", "Submitted event proposal");
+                return true;
+            }
+            return false;
+        }
+    }
+
+    public List<Map<String, Object>> getEventProposalsForScope(int adminId) throws SQLException {
+        String sql = "SELECT p.proposalID, p.submittedByAdminID, p.venueID, p.eventName, p.eventType, p.eventDate, p.notes, p.status, "
+                + "p.reviewedByAdminID, p.reviewedAt, p.reviewNote, p.createdAt, v.name AS campusName, "
+                + "sa.firstname AS submittedFirst, sa.lastname AS submittedLast, "
+                + "ra.firstname AS reviewedFirst, ra.lastname AS reviewedLast "
+                + "FROM event_proposal p "
+                + "LEFT JOIN venue v ON v.venueID = p.venueID "
+                + "LEFT JOIN admin sa ON sa.adminID = p.submittedByAdminID "
+                + "LEFT JOIN admin ra ON ra.adminID = p.reviewedByAdminID ";
+        if (isPrivilegedAdmin(adminId)) {
+            return runListQuery(sql + "ORDER BY p.status ASC, p.createdAt DESC", Collections.emptyList());
+        }
+        Integer campusVenueId = getAdminCampusVenueId(adminId);
+        if (campusVenueId == null || campusVenueId <= 0) {
+            return new ArrayList<>();
+        }
+        return runListQuery(sql + "WHERE p.venueID = ? ORDER BY p.status ASC, p.createdAt DESC",
+                Arrays.<Object>asList(campusVenueId));
+    }
+
+    public boolean reviewEventProposal(int adminId, int proposalId, boolean approve, String reviewNote) throws SQLException {
+        if (proposalId <= 0) {
+            return false;
+        }
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                int venueId = 0;
+                String status;
+                String eventName = null;
+                String eventType = null;
+                Timestamp eventDate = null;
+                try (PreparedStatement fetch = conn.prepareStatement(
+                        "SELECT venueID, status, eventName, eventType, eventDate FROM event_proposal WHERE proposalID = ?")) {
+                    fetch.setInt(1, proposalId);
+                    try (ResultSet rs = fetch.executeQuery()) {
+                        if (!rs.next()) {
+                            conn.rollback();
+                            return false;
+                        }
+                        venueId = rs.getInt("venueID");
+                        status = rs.getString("status");
+                        eventName = rs.getString("eventName");
+                        eventType = rs.getString("eventType");
+                        eventDate = rs.getTimestamp("eventDate");
+                    }
+                }
+
+                if (!"PENDING".equalsIgnoreCase(status)) {
+                    conn.rollback();
+                    return false;
+                }
+
+                if (!isPrivilegedAdmin(adminId) && !hasCampusAccessForRoleMutation(adminId, "VENUE_GUARD", null, null, venueId, null)) {
+                    throw new SQLException("CampusScopeDenied");
+                }
+
+                String newStatus = approve ? "APPROVED" : "REJECTED";
+                try (PreparedStatement update = conn.prepareStatement(
+                        "UPDATE event_proposal SET status = ?, reviewedByAdminID = ?, reviewedAt = CURRENT_TIMESTAMP, reviewNote = ? WHERE proposalID = ?")) {
+                    update.setString(1, newStatus);
+                    update.setInt(2, adminId);
+                    update.setString(3, reviewNote == null ? null : reviewNote.trim());
+                    update.setInt(4, proposalId);
+                    update.executeUpdate();
+                }
+
+                if (approve) {
+                    try (PreparedStatement insert = conn.prepareStatement(
+                            "INSERT INTO event(name, type, date, venueID) VALUES(?,?,?,?)")) {
+                        insert.setString(1, eventName);
+                        insert.setString(2, eventType);
+                        insert.setTimestamp(3, eventDate);
+                        insert.setInt(4, venueId);
+                        insert.executeUpdate();
+                    }
+                }
+
+                logAudit(conn, adminId, approve ? "APPROVE_EVENT_PROPOSAL" : "REJECT_EVENT_PROPOSAL",
+                        "event_proposal", String.valueOf(proposalId), "Reviewed event proposal");
+                conn.commit();
+                return true;
+            } catch (SQLException ex) {
+                conn.rollback();
+                throw ex;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        }
+    }
+
+    public boolean createRefundCase(int adminId, int attendeeId, Integer orderId, Integer eventId, String reason) throws SQLException {
+        if (adminId <= 0 || attendeeId <= 0) {
+            throw new SQLException("MissingFields");
+        }
+        if (eventId != null && eventId > 0 && !hasCampusAccessForRoleMutation(adminId, "ADMIN", null, eventId, null, null)) {
+            throw new SQLException("CampusScopeDenied");
+        }
+
+        String sql = "INSERT INTO attendee_refund_request(attendeeID, orderID, eventID, requestedByAdminID, reason, status, requestedAt) "
+                + "VALUES(?,?,?,?,?,?,CURRENT_TIMESTAMP)";
+        try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, attendeeId);
+            if (orderId == null || orderId <= 0) {
+                ps.setNull(2, java.sql.Types.INTEGER);
+            } else {
+                ps.setInt(2, orderId);
+            }
+            if (eventId == null || eventId <= 0) {
+                ps.setNull(3, java.sql.Types.INTEGER);
+            } else {
+                ps.setInt(3, eventId);
+            }
+            ps.setInt(4, adminId);
+            ps.setString(5, reason == null ? "Campus support refund case" : reason.trim());
+            ps.setString(6, "PENDING");
+            int affected = ps.executeUpdate();
+            if (affected > 0) {
+                logAudit(conn, adminId, "CREATE_REFUND_CASE", "attendee_refund_request", "-", "Created refund case");
+                return true;
+            }
+            return false;
+        }
+    }
+
+    public List<Map<String, Object>> getRefundRequestsForScope(int adminId) throws SQLException {
+        String sql = "SELECT r.refundRequestID, r.attendeeID, r.orderID, r.eventID, r.requestedByAdminID, r.reason, r.status, "
+                + "r.resolutionNote, r.resolvedByAdminID, r.requestedAt, r.resolvedAt, "
+                + "a.firstname AS attendeeFirst, a.lastname AS attendeeLast, a.email AS attendeeEmail, "
+                + "e.name AS eventName, v.name AS campusName "
+                + "FROM attendee_refund_request r "
+                + "JOIN attendee a ON a.attendeeID = r.attendeeID "
+                + "LEFT JOIN event e ON e.eventID = r.eventID "
+                + "LEFT JOIN venue v ON v.venueID = e.venueID ";
+
+        if (isPrivilegedAdmin(adminId)) {
+            return runListQuery(sql + "ORDER BY r.status ASC, r.requestedAt DESC", Collections.emptyList());
+        }
+
+        Integer campusVenueId = getAdminCampusVenueId(adminId);
+        if (campusVenueId == null || campusVenueId <= 0) {
+            return new ArrayList<>();
+        }
+
+        return runListQuery(sql + "WHERE e.venueID = ? ORDER BY r.status ASC, r.requestedAt DESC",
+                Arrays.<Object>asList(campusVenueId));
+    }
+
+    public boolean resolveRefundCase(int adminId, int refundRequestId, boolean approve, String resolutionNote) throws SQLException {
+        if (refundRequestId <= 0) {
+            return false;
+        }
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                Integer eventId = null;
+                String status;
+                try (PreparedStatement fetch = conn.prepareStatement(
+                        "SELECT eventID, status FROM attendee_refund_request WHERE refundRequestID = ?")) {
+                    fetch.setInt(1, refundRequestId);
+                    try (ResultSet rs = fetch.executeQuery()) {
+                        if (!rs.next()) {
+                            conn.rollback();
+                            return false;
+                        }
+                        status = rs.getString("status");
+                        eventId = rs.getObject("eventID") == null ? null : rs.getInt("eventID");
+                    }
+                }
+
+                if (!"PENDING".equalsIgnoreCase(status)) {
+                    conn.rollback();
+                    return false;
+                }
+
+                if (!isPrivilegedAdmin(adminId) && eventId != null && eventId > 0
+                        && !hasCampusAccessForRoleMutation(adminId, "ADMIN", null, eventId, null, null)) {
+                    throw new SQLException("CampusScopeDenied");
+                }
+
+                String newStatus = approve ? "APPROVED" : "REJECTED";
+                try (PreparedStatement update = conn.prepareStatement(
+                        "UPDATE attendee_refund_request SET status = ?, resolutionNote = ?, resolvedByAdminID = ?, resolvedAt = CURRENT_TIMESTAMP WHERE refundRequestID = ?")) {
+                    update.setString(1, newStatus);
+                    update.setString(2, resolutionNote == null ? null : resolutionNote.trim());
+                    update.setInt(3, adminId);
+                    update.setInt(4, refundRequestId);
+                    update.executeUpdate();
+                }
+
+                logAudit(conn, adminId, approve ? "APPROVE_REFUND_CASE" : "REJECT_REFUND_CASE",
+                        "attendee_refund_request", String.valueOf(refundRequestId), "Reviewed refund case");
+                conn.commit();
+                return true;
+            } catch (SQLException ex) {
+                conn.rollback();
+                throw ex;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        }
+    }
+
     public Map<String, Object> getRootPasswordStatus() throws SQLException {
         Map<String, Object> status = new HashMap<>();
         status.put("source", "LEGACY");

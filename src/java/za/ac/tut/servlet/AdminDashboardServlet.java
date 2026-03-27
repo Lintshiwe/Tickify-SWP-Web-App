@@ -14,10 +14,12 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import za.ac.tut.databaseManagement.AdminITDAO;
+import za.ac.tut.notification.EmailService;
 
 public class AdminDashboardServlet extends HttpServlet {
 
     private final AdminITDAO adminITDAO = new AdminITDAO();
+    private final EmailService emailService = new EmailService();
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
@@ -202,6 +204,55 @@ public class AdminDashboardServlet extends HttpServlet {
                 return;
             }
 
+            if ("createEventProposal".equals(action)) {
+                boolean ok = adminITDAO.createEventProposal(
+                        adminId,
+                        req(request, "eventName"),
+                        req(request, "eventType"),
+                        parseDateTimeLocal(req(request, "eventDate")),
+                        parseInt(req(request, "venueID")),
+                        param(request, "notes")
+                );
+                redirectWithMsg(request, response, ok ? "ProposalCreated" : "NoChange");
+                return;
+            }
+
+            if ("reviewEventProposal".equals(action)) {
+                boolean approve = "approve".equalsIgnoreCase(req(request, "decision"));
+                boolean ok = adminITDAO.reviewEventProposal(
+                        adminId,
+                        parseInt(req(request, "proposalID")),
+                        approve,
+                        param(request, "reviewNote")
+                );
+                redirectWithMsg(request, response, ok ? (approve ? "ProposalApproved" : "ProposalRejected") : "NoChange");
+                return;
+            }
+
+            if ("createRefundCase".equals(action)) {
+                boolean ok = adminITDAO.createRefundCase(
+                        adminId,
+                        parseInt(req(request, "attendeeID")),
+                        parseOptionalInt(param(request, "orderID")),
+                        parseOptionalInt(param(request, "eventID")),
+                        param(request, "reason")
+                );
+                redirectWithMsg(request, response, ok ? "RefundCaseCreated" : "NoChange");
+                return;
+            }
+
+            if ("resolveRefundCase".equals(action)) {
+                boolean approve = "approve".equalsIgnoreCase(req(request, "decision"));
+                boolean ok = adminITDAO.resolveRefundCase(
+                        adminId,
+                        parseInt(req(request, "refundRequestID")),
+                        approve,
+                        param(request, "resolutionNote")
+                );
+                redirectWithMsg(request, response, ok ? (approve ? "RefundApproved" : "RefundRejected") : "NoChange");
+                return;
+            }
+
             if ("deleteUser".equals(action)) {
                 String targetRole = req(request, "role");
                 int targetId = parseInt(req(request, "id"));
@@ -311,6 +362,30 @@ public class AdminDashboardServlet extends HttpServlet {
                 return;
             }
 
+            if ("runEmailHealthCheck".equals(action)) {
+                String targetEmail = req(request, "healthCheckEmail").toLowerCase();
+                String context = request.getContextPath();
+                if (context == null || context.isEmpty()) {
+                    context = "/";
+                }
+                if (!context.endsWith("/")) {
+                    context = context + "/";
+                }
+
+                String resetLink = request.getScheme() + "://" + request.getServerName()
+                        + ((request.getServerPort() == 80 || request.getServerPort() == 443) ? "" : ":" + request.getServerPort())
+                        + context + "ClientPasswordReset.jsp?healthCheck=1";
+
+                try {
+                    emailService.sendPasswordResetEmail(targetEmail, resetLink);
+                    redirectWithMsg(request, response, "EmailHealthCheckPassed");
+                } catch (Exception mailEx) {
+                    log("Email health check failed for " + targetEmail, mailEx);
+                    redirectWithErr(request, response, "EmailHealthCheckFailed");
+                }
+                return;
+            }
+
             redirectWithErr(request, response, "UnknownAction");
         } catch (IllegalArgumentException ex) {
             redirectWithErr(request, response, "MissingFields");
@@ -389,6 +464,8 @@ public class AdminDashboardServlet extends HttpServlet {
         request.setAttribute("venues", adminITDAO.getVenueOptionsForScope(adminId));
         request.setAttribute("guardOptions", adminITDAO.getGuardOptionsForScope(adminId));
         request.setAttribute("deleteRequests", adminITDAO.getDeletionRequests(adminId));
+        request.setAttribute("eventProposals", adminITDAO.getEventProposalsForScope(adminId));
+        request.setAttribute("refundRequests", adminITDAO.getRefundRequestsForScope(adminId));
         request.setAttribute("tableSummary", adminITDAO.getUserTableSummary());
         request.setAttribute("faultSignals", adminITDAO.getFaultSignals());
         request.setAttribute("dbTables", adminITDAO.getAllUserTables());
@@ -506,6 +583,10 @@ public class AdminDashboardServlet extends HttpServlet {
                 || "createManager".equals(action)
                 || "provisionManager".equals(action)
                 || "createPresenter".equals(action)
+                || "createEventProposal".equals(action)
+                || "reviewEventProposal".equals(action)
+                || "createRefundCase".equals(action)
+                || "resolveRefundCase".equals(action)
                 || "createEvent".equals(action)
                 || "updateEvent".equals(action)
                 || "deleteEvent".equals(action)
@@ -518,6 +599,7 @@ public class AdminDashboardServlet extends HttpServlet {
                 || "safeDeleteRow".equals(action)
                 || "rotateRootPassword".equals(action)
                 || "purgeScanLogs".equals(action)
+                || "runEmailHealthCheck".equals(action)
                 || "resolveDeleteRequest".equals(action);
     }
 
@@ -525,6 +607,7 @@ public class AdminDashboardServlet extends HttpServlet {
         return "safeDeleteRow".equals(action)
                 || "rotateRootPassword".equals(action)
                 || "purgeScanLogs".equals(action)
+                || "runEmailHealthCheck".equals(action)
                 || "resolveDeleteRequest".equals(action);
     }
 

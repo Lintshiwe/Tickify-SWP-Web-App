@@ -134,9 +134,16 @@
                     <c:when test="${param.msg == 'DeleteRequested'}">Delete request submitted to admin for approval.</c:when>
                     <c:when test="${param.msg == 'DeleteApproved'}">Delete request approved and action completed.</c:when>
                     <c:when test="${param.msg == 'DeleteRejected'}">Delete request rejected by admin.</c:when>
+                    <c:when test="${param.msg == 'ProposalCreated'}">Event proposal submitted successfully.</c:when>
+                    <c:when test="${param.msg == 'ProposalApproved'}">Event proposal approved and event created.</c:when>
+                    <c:when test="${param.msg == 'ProposalRejected'}">Event proposal rejected.</c:when>
+                    <c:when test="${param.msg == 'RefundCaseCreated'}">Refund case logged for campus support.</c:when>
+                    <c:when test="${param.msg == 'RefundApproved'}">Refund case approved.</c:when>
+                    <c:when test="${param.msg == 'RefundRejected'}">Refund case rejected.</c:when>
                     <c:when test="${param.msg == 'RowDeleted'}">Database row deleted successfully.</c:when>
                     <c:when test="${param.msg == 'RootPasswordRotated'}">Root password rotated successfully.</c:when>
                     <c:when test="${param.msg == 'ScanLogsPurged'}">Scan logs purged successfully.</c:when>
+                    <c:when test="${param.msg == 'EmailHealthCheckPassed'}">Email health check passed and message sent successfully.</c:when>
                     <c:when test="${param.msg == 'ProfileUpdated'}">Your admin profile was updated successfully.</c:when>
                     <c:when test="${param.msg == 'NoChange'}">No changes were applied.</c:when>
                     <c:otherwise>Operation completed successfully.</c:otherwise>
@@ -155,6 +162,7 @@
                     <c:when test="${param.err == 'MissingFields'}">Please complete all required fields.</c:when>
                     <c:when test="${param.err == 'EmailInUse'}">That email address is already used by another admin account.</c:when>
                     <c:when test="${param.err == 'UnknownAction'}">Unknown action requested.</c:when>
+                    <c:when test="${param.err == 'EmailHealthCheckFailed'}">Email health check failed. Verify SMTP settings and recipient email.</c:when>
                     <c:when test="${param.err == 'OperationFailed'}">Operation failed. Please try again.</c:when>
                     <c:otherwise>An error occurred. Please verify your input and try again.</c:otherwise>
                 </c:choose>
@@ -349,6 +357,111 @@
             </div>
         </section>
 
+        <section class="grid">
+            <article class="card">
+                <h3>Event Proposals</h3>
+                <p style="margin:0 0 8px;color:#5f6f63;">Campus admins can propose events and review pending proposals in their campus scope.</p>
+
+                <form action="${pageContext.request.contextPath}/AdminDashboard.do" method="POST" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:end;">
+                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                    <input type="hidden" name="action" value="createEventProposal">
+                    <div class="field"><label>Event Name</label><input type="text" name="eventName" required></div>
+                    <div class="field"><label>Type</label><input type="text" name="eventType" required></div>
+                    <div class="field"><label>Date/Time</label><input type="datetime-local" name="eventDate" required></div>
+                    <div class="field"><label>Venue</label><select name="venueID" required><option value="">Select</option><c:forEach var="v" items="${venues}"><option value="${v.venueID}">${v.name} (#${v.venueID})</option></c:forEach></select></div>
+                    <div class="field" style="grid-column:span 2;"><label>Notes</label><input type="text" name="notes" placeholder="Optional context for reviewers"></div>
+                    <div class="field"><button class="btn" type="submit">Submit Proposal</button></div>
+                </form>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>ID</th><th>Event</th><th>Campus</th><th>Status</th><th>Submitted By</th><th>Action</th></tr></thead>
+                        <tbody>
+                            <c:forEach var="p" items="${eventProposals}">
+                                <tr>
+                                    <td>${p.proposalID}</td>
+                                    <td>${p.eventName} (${p.eventType})</td>
+                                    <td>${p.campusName}</td>
+                                    <td>${p.status}</td>
+                                    <td>${p.submittedFirst} ${p.submittedLast} (#${p.submittedByAdminID})</td>
+                                    <td>
+                                        <c:if test="${p.status == 'PENDING'}">
+                                            <form action="${pageContext.request.contextPath}/AdminDashboard.do" method="POST" class="actions">
+                                                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                                <input type="hidden" name="action" value="reviewEventProposal">
+                                                <input type="hidden" name="proposalID" value="${p.proposalID}">
+                                                <input type="hidden" name="decision" value="approve">
+                                                <button class="btn" type="submit">Approve</button>
+                                            </form>
+                                            <form action="${pageContext.request.contextPath}/AdminDashboard.do" method="POST" class="actions" style="margin-top:4px;">
+                                                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                                <input type="hidden" name="action" value="reviewEventProposal">
+                                                <input type="hidden" name="proposalID" value="${p.proposalID}">
+                                                <input type="hidden" name="decision" value="reject">
+                                                <button class="btn btn-alt" type="submit">Reject</button>
+                                            </form>
+                                        </c:if>
+                                    </td>
+                                </tr>
+                            </c:forEach>
+                            <c:if test="${empty eventProposals}"><tr><td colspan="6">No event proposals found.</td></tr></c:if>
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+
+            <article class="card">
+                <h3>Refund Cases</h3>
+                <p style="margin:0 0 8px;color:#5f6f63;">Track and resolve attendee refund/support requests by campus.</p>
+
+                <form action="${pageContext.request.contextPath}/AdminDashboard.do" method="POST" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:end;">
+                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                    <input type="hidden" name="action" value="createRefundCase">
+                    <div class="field"><label>Attendee ID</label><input type="number" name="attendeeID" min="1" required></div>
+                    <div class="field"><label>Order ID (optional)</label><input type="number" name="orderID" min="1"></div>
+                    <div class="field"><label>Event ID (optional)</label><input type="number" name="eventID" min="1"></div>
+                    <div class="field" style="grid-column:span 2;"><label>Reason</label><input type="text" name="reason" required></div>
+                    <div class="field"><button class="btn" type="submit">Log Refund Case</button></div>
+                </form>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>ID</th><th>Attendee</th><th>Event</th><th>Status</th><th>Reason</th><th>Action</th></tr></thead>
+                        <tbody>
+                            <c:forEach var="r" items="${refundRequests}">
+                                <tr>
+                                    <td>${r.refundRequestID}</td>
+                                    <td>${r.attendeeFirst} ${r.attendeeLast} (#${r.attendeeID})</td>
+                                    <td>${r.eventName}</td>
+                                    <td>${r.status}</td>
+                                    <td>${r.reason}</td>
+                                    <td>
+                                        <c:if test="${r.status == 'PENDING'}">
+                                            <form action="${pageContext.request.contextPath}/AdminDashboard.do" method="POST" class="actions">
+                                                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                                <input type="hidden" name="action" value="resolveRefundCase">
+                                                <input type="hidden" name="refundRequestID" value="${r.refundRequestID}">
+                                                <input type="hidden" name="decision" value="approve">
+                                                <button class="btn" type="submit">Approve</button>
+                                            </form>
+                                            <form action="${pageContext.request.contextPath}/AdminDashboard.do" method="POST" class="actions" style="margin-top:4px;">
+                                                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                                <input type="hidden" name="action" value="resolveRefundCase">
+                                                <input type="hidden" name="refundRequestID" value="${r.refundRequestID}">
+                                                <input type="hidden" name="decision" value="reject">
+                                                <button class="btn btn-alt" type="submit">Reject</button>
+                                            </form>
+                                        </c:if>
+                                    </td>
+                                </tr>
+                            </c:forEach>
+                            <c:if test="${empty refundRequests}"><tr><td colspan="6">No refund cases found.</td></tr></c:if>
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+        </section>
+
         <section class="card" style="margin-top:10px;">
             <h3>Root Password Settings</h3>
             <p style="margin:0 0 8px;color:#5f6f63;">For privileged admin, root password is the same as login password.</p>
@@ -367,6 +480,24 @@
                         <div class="field"><button class="btn" type="submit">Rotate Password</button></div>
                     </form>
                 </c:when>
+            </c:choose>
+        </section>
+
+        <section class="card" style="margin-top:10px;">
+            <h3>Email Health Check</h3>
+            <p style="margin:0 0 8px;color:#5f6f63;">Sends a live SMTP password-reset test email to verify outbound email flow.</p>
+            <c:choose>
+                <c:when test="${isPrivilegedAdmin}">
+                    <form action="${pageContext.request.contextPath}/AdminDashboard.do" method="POST" class="root-form-grid">
+                        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                        <input type="hidden" name="action" value="runEmailHealthCheck">
+                        <div class="field" style="grid-column:span 3;"><label>Recipient Email</label><input type="email" name="healthCheckEmail" value="${sessionScope.userEmail}" required></div>
+                        <div class="field"><button class="btn" type="submit">Run Email Health Check</button></div>
+                    </form>
+                </c:when>
+                <c:otherwise>
+                    <p style="margin:0;color:#5f6f63;">Only main admin can run this operation.</p>
+                </c:otherwise>
             </c:choose>
         </section>
 

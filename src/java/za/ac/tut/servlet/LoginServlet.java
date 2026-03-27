@@ -44,12 +44,13 @@ public class LoginServlet extends HttpServlet {
         }
         String password = req.getParameter("password");
         String chosenRole = req.getParameter("userRole"); // Captured from the Radio Buttons
+        chosenRole = normalizeRole(chosenRole);
         String normalizedLoginId = loginId != null ? loginId.trim().toLowerCase() : null;
 
         // 2. Input Validation
         if (loginId == null || loginId.trim().isEmpty() || 
-            password == null || password.trim().isEmpty() || 
-            chosenRole == null) {
+            password == null || password.trim().isEmpty() ||
+            chosenRole == null || !ROLE_MAP.containsKey(chosenRole)) {
             handleError(req, resp, "All fields and a role selection are required.");
             return;
         }
@@ -225,6 +226,23 @@ public class LoginServlet extends HttpServlet {
 
     private boolean supportsUsername(String role) {
         return "ATTENDEE".equals(role) || "TERTIARY_PRESENTER".equals(role);
+    }
+
+    private String normalizeRole(String role) {
+        if (role == null) {
+            return null;
+        }
+        String normalized = role.trim().toUpperCase().replace('-', '_').replace(' ', '_');
+        if ("PRESENTER".equals(normalized)) {
+            return "TERTIARY_PRESENTER";
+        }
+        if ("MANAGER".equals(normalized)) {
+            return "EVENT_MANAGER";
+        }
+        if ("GUARD".equals(normalized)) {
+            return "VENUE_GUARD";
+        }
+        return normalized;
     }
 
     private String buildRoleNumberLabel(String role, int uid) {

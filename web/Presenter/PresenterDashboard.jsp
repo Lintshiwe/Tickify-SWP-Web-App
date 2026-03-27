@@ -17,6 +17,9 @@
         .profile-meta { color:#607167; font-weight:700; font-size:.92rem; }
         .logout { text-decoration:none; background:#eef8e9; color:var(--green-dark); border:1px solid #cfe2c9; border-radius:10px; padding:10px 12px; font-weight:800; }
         .card { margin-top:12px; background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px; }
+        .flash { margin-top:10px; border-radius:10px; padding:10px 12px; font-weight:800; }
+        .ok { background:#eaf7e7; color:#1f7c39; border:1px solid #cce6c7; }
+        .err { background:#ffecec; color:#9b1c1c; border:1px solid #f0c2c2; }
         .kpis { margin-top:12px; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
         .kpi { background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px; }
         .kpi strong { display:block; font-size:1.28rem; color:#31502f; }
@@ -57,6 +60,37 @@
             </div>
             <a class="logout" href="${pageContext.request.contextPath}/LogoutServlet.do">Logout</a>
         </div>
+
+        <c:if test="${param.msg != null}">
+            <div class="flash ok">
+                <c:choose>
+                    <c:when test="${param.msg == 'MaterialAdded'}">Material uploaded successfully.</c:when>
+                    <c:when test="${param.msg == 'ScheduleAdded'}">Schedule item added successfully.</c:when>
+                    <c:when test="${param.msg == 'AnnouncementAdded'}">Announcement published successfully.</c:when>
+                    <c:when test="${param.msg == 'NoChange'}">No changes were applied.</c:when>
+                    <c:otherwise>Operation completed successfully.</c:otherwise>
+                </c:choose>
+            </div>
+        </c:if>
+        <c:if test="${param.err != null}">
+            <div class="flash err">
+                <c:choose>
+                    <c:when test="${param.err == 'UnknownAction'}">Unknown presenter action requested.</c:when>
+                    <c:when test="${param.err == 'InvalidMaterialTitle'}">Material title must be between 3 and 120 characters.</c:when>
+                    <c:when test="${param.err == 'InvalidMaterialUrl'}">Material URL must start with http:// or https://.</c:when>
+                    <c:when test="${param.err == 'InvalidMaterialDescription'}">Material description is too long.</c:when>
+                    <c:when test="${param.err == 'InvalidScheduleTitle'}">Schedule title must be between 3 and 120 characters.</c:when>
+                    <c:when test="${param.err == 'InvalidScheduleDate'}">Please provide a valid schedule date and time.</c:when>
+                    <c:when test="${param.err == 'InvalidScheduleRange'}">Schedule end time must be after start time.</c:when>
+                    <c:when test="${param.err == 'InvalidScheduleRoom'}">Room field is too long.</c:when>
+                    <c:when test="${param.err == 'InvalidScheduleNotes'}">Schedule notes are too long.</c:when>
+                    <c:when test="${param.err == 'InvalidAnnouncementTitle'}">Announcement title must be between 3 and 120 characters.</c:when>
+                    <c:when test="${param.err == 'InvalidAnnouncementBody'}">Announcement body must be between 8 and 1000 characters.</c:when>
+                    <c:when test="${param.err == 'OperationFailed'}">Unable to process your request.</c:when>
+                    <c:otherwise>Request failed.</c:otherwise>
+                </c:choose>
+            </div>
+        </c:if>
 
         <section class="card">
             <h1>Presenter Workspace</h1>
@@ -157,6 +191,111 @@
                                 </tr>
                             </c:forEach>
                             <c:if test="${empty peerPresenters}"><tr><td colspan="4" class="empty">No peer presenters at this venue yet.</td></tr></c:if>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="card full">
+                <h2>Session Materials</h2>
+                <form action="${pageContext.request.contextPath}/TertiaryPresenterDashboard.do" method="POST" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:end;">
+                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                    <input type="hidden" name="action" value="addMaterial">
+                    <input type="text" name="title" placeholder="Material title" required>
+                    <input type="url" name="materialUrl" placeholder="Material URL (optional)">
+                    <input type="text" name="description" placeholder="Description">
+                    <button type="submit">Add Material</button>
+                </form>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Title</th><th>URL</th><th>Description</th><th>Created</th></tr></thead>
+                        <tbody>
+                            <c:forEach var="m" items="${materials}">
+                                <tr>
+                                    <td>${m.title}</td>
+                                    <td>${m.materialUrl}</td>
+                                    <td>${m.description}</td>
+                                    <td>${m.createdAt}</td>
+                                </tr>
+                            </c:forEach>
+                            <c:if test="${empty materials}"><tr><td colspan="4" class="empty">No materials uploaded yet.</td></tr></c:if>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="card full">
+                <h2>Session Schedule</h2>
+                <form action="${pageContext.request.contextPath}/TertiaryPresenterDashboard.do" method="POST" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:end;">
+                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                    <input type="hidden" name="action" value="addScheduleItem">
+                    <input type="text" name="title" placeholder="Session title" required>
+                    <input type="datetime-local" name="startsAt" required>
+                    <input type="datetime-local" name="endsAt">
+                    <input type="text" name="room" placeholder="Room/Stage">
+                    <input type="text" name="notes" placeholder="Notes">
+                    <button type="submit">Add Schedule Item</button>
+                </form>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Title</th><th>Starts</th><th>Ends</th><th>Room</th><th>Notes</th></tr></thead>
+                        <tbody>
+                            <c:forEach var="s" items="${scheduleItems}">
+                                <tr>
+                                    <td>${s.title}</td>
+                                    <td>${s.startsAt}</td>
+                                    <td>${s.endsAt}</td>
+                                    <td>${s.room}</td>
+                                    <td>${s.notes}</td>
+                                </tr>
+                            </c:forEach>
+                            <c:if test="${empty scheduleItems}"><tr><td colspan="5" class="empty">No schedule items added yet.</td></tr></c:if>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="card full">
+                <h2>Announcements</h2>
+                <form action="${pageContext.request.contextPath}/TertiaryPresenterDashboard.do" method="POST" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:end;">
+                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                    <input type="hidden" name="action" value="addAnnouncement">
+                    <input type="text" name="title" placeholder="Announcement title" required>
+                    <input type="text" name="body" placeholder="Announcement body" required>
+                    <button type="submit">Publish Announcement</button>
+                </form>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Title</th><th>Body</th><th>Created</th></tr></thead>
+                        <tbody>
+                            <c:forEach var="a" items="${announcements}">
+                                <tr>
+                                    <td>${a.title}</td>
+                                    <td>${a.body}</td>
+                                    <td>${a.createdAt}</td>
+                                </tr>
+                            </c:forEach>
+                            <c:if test="${empty announcements}"><tr><td colspan="3" class="empty">No announcements yet.</td></tr></c:if>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="card full">
+                <h2>Attendees For My Session Event</h2>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>ID</th><th>Username</th><th>Name</th><th>Email</th></tr></thead>
+                        <tbody>
+                            <c:forEach var="u" items="${attendeeList}">
+                                <tr>
+                                    <td>${u.attendeeID}</td>
+                                    <td>${u.username}</td>
+                                    <td>${u.firstname} ${u.lastname}</td>
+                                    <td>${u.email}</td>
+                                </tr>
+                            </c:forEach>
+                            <c:if test="${empty attendeeList}"><tr><td colspan="4" class="empty">No attendees found for your event yet.</td></tr></c:if>
                         </tbody>
                     </table>
                 </div>

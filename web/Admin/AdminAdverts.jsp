@@ -91,6 +91,9 @@
                 <c:choose>
                     <c:when test="${param.msg == 'Created'}">Advert created successfully.</c:when>
                     <c:when test="${param.msg == 'Updated'}">Advert updated successfully.</c:when>
+                    <c:when test="${param.msg == 'Edited'}">Advert edited successfully.</c:when>
+                    <c:when test="${param.msg == 'Deleted'}">Advert deleted successfully.</c:when>
+                    <c:when test="${param.msg == 'NoChange'}">No changes were applied.</c:when>
                     <c:otherwise>Operation completed successfully.</c:otherwise>
                 </c:choose>
             </div>
@@ -105,6 +108,7 @@
                     <c:when test="${param.err == 'ImageRead'}">Could not read uploaded image. Please try again.</c:when>
                     <c:when test="${param.err == 'CreateFailed'}">Failed to create advert. Please try again.</c:when>
                     <c:when test="${param.err == 'UpdateFailed'}">Failed to update advert. Please try again.</c:when>
+                    <c:when test="${param.err == 'DeleteFailed'}">Failed to delete advert. Please try again.</c:when>
                     <c:when test="${param.err == 'InvalidAdvert'}">Selected advert is invalid.</c:when>
                     <c:otherwise>An error occurred. Please verify input and try again.</c:otherwise>
                 </c:choose>
@@ -137,16 +141,30 @@
                     <div class="ad">
                         <strong>${ad.title}</strong>
                         <div class="muted">${ad.organizationName} | ${ad.venue} | ${ad.eventDate}</div>
-                        <div class="row" style="margin-top:8px;">
-                            <img src="AdvertImage.do?id=${ad.advertID}" alt="${ad.title}" style="width:84px;height:56px;object-fit:cover;border-radius:8px;border:1px solid #e3eee0;">
-                            <form action="AdminAdverts.do" method="POST" style="margin:0;">
+                        <div class="row" style="margin-top:8px; align-items:flex-start;">
+                            <img src="AdvertImage.do?id=${ad.advertID}" alt="${ad.title}" style="width:120px;height:80px;object-fit:cover;border-radius:8px;border:1px solid #e3eee0;">
+                            <form action="AdminAdverts.do" method="POST" enctype="multipart/form-data" style="margin:0; flex:1 1 auto;">
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                                <input type="hidden" name="action" value="toggle">
+                                <input type="hidden" name="action" value="edit">
                                 <input type="hidden" name="advertID" value="${ad.advertID}">
+                                <div class="field"><label>Organization</label><input type="text" name="organizationName" value="${ad.organizationName}" required></div>
+                                <div class="field"><label>Title</label><input type="text" name="title" value="${ad.title}" required></div>
+                                <div class="field"><label>Details</label><textarea name="details" rows="2">${ad.details}</textarea></div>
+                                <div class="field"><label>Venue</label><input type="text" name="venue" value="${ad.venue}" required></div>
+                                <div class="field"><label>Event Date</label><input type="date" name="eventDate" value="${ad.eventDate}" required></div>
+                                <div class="field"><label>Replace Image (optional)</label><input type="file" name="advertImage" accept="image/*"></div>
                                 <label><input type="checkbox" name="paidOrganization" <c:if test="${ad.paidOrganization}">checked</c:if>> Paid</label>
                                 <label><input type="checkbox" name="selectedForDisplay" <c:if test="${ad.selectedForDisplay}">checked</c:if>> Display</label>
                                 <label><input type="checkbox" name="active" <c:if test="${ad.active}">checked</c:if>> Active</label>
-                                <button class="btn" type="submit">Update</button>
+                                <div class="row" style="margin-top:8px;">
+                                    <button class="btn" type="submit">Save Edit</button>
+                                </div>
+                            </form>
+                            <form action="AdminAdverts.do" method="POST" style="margin:0;">
+                                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="advertID" value="${ad.advertID}">
+                                <button class="btn" type="submit" onclick="return confirm('Delete this advert? This cannot be undone.');">Delete</button>
                             </form>
                         </div>
                     </div>

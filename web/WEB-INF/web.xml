@@ -69,6 +69,10 @@
         <servlet-class>za.ac.tut.servlet.ValidateTicketServlet</servlet-class>
     </servlet>
     <servlet>
+        <servlet-name>VenueGuardAttendeesServlet</servlet-name>
+        <servlet-class>za.ac.tut.servlet.VenueGuardAttendeesServlet</servlet-class>
+    </servlet>
+    <servlet>
         <servlet-name>BookTicketServlet</servlet-name>
         <servlet-class>za.ac.tut.servlet.BookTicketServlet</servlet-class>
     </servlet>
@@ -163,6 +167,10 @@
     <servlet-mapping>
         <servlet-name>ValidateTicketServlet</servlet-name>
         <url-pattern>/ValidateTicketServlet.do</url-pattern>
+    </servlet-mapping>
+    <servlet-mapping>
+        <servlet-name>VenueGuardAttendeesServlet</servlet-name>
+        <url-pattern>/VenueGuardAttendees.do</url-pattern>
     </servlet-mapping>
     <servlet-mapping>
         <servlet-name>BookTicketServlet</servlet-name>

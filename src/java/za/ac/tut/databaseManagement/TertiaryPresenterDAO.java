@@ -208,6 +208,86 @@ public class TertiaryPresenterDAO {
         return runListQuery(sql, presenterID);
     }
 
+    public List<Map<String, Object>> getPresenterMaterials(int presenterID) throws SQLException {
+        String sql = "SELECT materialID, title, materialUrl, description, createdAt "
+                + "FROM presenter_material WHERE tertiaryPresenterID = ? ORDER BY createdAt DESC";
+        return runListQuery(sql, presenterID);
+    }
+
+    public List<Map<String, Object>> getPresenterScheduleItems(int presenterID) throws SQLException {
+        String sql = "SELECT scheduleItemID, title, startsAt, endsAt, room, notes, createdAt "
+                + "FROM presenter_schedule_item WHERE tertiaryPresenterID = ? ORDER BY startsAt ASC";
+        return runListQuery(sql, presenterID);
+    }
+
+    public List<Map<String, Object>> getPresenterAnnouncements(int presenterID) throws SQLException {
+        String sql = "SELECT announcementID, title, body, createdAt "
+                + "FROM presenter_announcement WHERE tertiaryPresenterID = ? ORDER BY createdAt DESC";
+        return runListQuery(sql, presenterID);
+    }
+
+    public List<Map<String, Object>> getEventAttendeesForPresenter(int presenterID) throws SQLException {
+        String sql = "SELECT DISTINCT a.attendeeID, a.username, a.firstname, a.lastname, a.email "
+                + "FROM tertiary_presenter p "
+                + "JOIN event_has_ticket eht ON eht.eventID = p.eventID "
+                + "JOIN attendee_has_ticket aht ON aht.ticketID = eht.ticketID "
+                + "JOIN attendee a ON a.attendeeID = aht.attendeeID "
+                + "WHERE p.tertiaryPresenterID = ? "
+                + "ORDER BY a.firstname, a.lastname";
+        return runListQuery(sql, presenterID);
+    }
+
+    public boolean addPresenterMaterial(int presenterID, String title, String materialUrl, String description) throws SQLException {
+        if (presenterID <= 0 || title == null || title.trim().isEmpty()) {
+            return false;
+        }
+        String sql = "INSERT INTO presenter_material(tertiaryPresenterID, title, materialUrl, description, createdAt) "
+                + "VALUES(?,?,?,?,CURRENT_TIMESTAMP)";
+        try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, presenterID);
+            ps.setString(2, title.trim());
+            ps.setString(3, materialUrl == null ? null : materialUrl.trim());
+            ps.setString(4, description == null ? null : description.trim());
+            return ps.executeUpdate() > 0;
+        }
+    }
+
+    public boolean addPresenterScheduleItem(int presenterID, String title, Timestamp startsAt,
+            Timestamp endsAt, String room, String notes) throws SQLException {
+        if (presenterID <= 0 || startsAt == null || title == null || title.trim().isEmpty()) {
+            return false;
+        }
+        String sql = "INSERT INTO presenter_schedule_item(tertiaryPresenterID, title, startsAt, endsAt, room, notes, createdAt) "
+                + "VALUES(?,?,?,?,?,?,CURRENT_TIMESTAMP)";
+        try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, presenterID);
+            ps.setString(2, title.trim());
+            ps.setTimestamp(3, startsAt);
+            if (endsAt == null) {
+                ps.setNull(4, Types.TIMESTAMP);
+            } else {
+                ps.setTimestamp(4, endsAt);
+            }
+            ps.setString(5, room == null ? null : room.trim());
+            ps.setString(6, notes == null ? null : notes.trim());
+            return ps.executeUpdate() > 0;
+        }
+    }
+
+    public boolean addPresenterAnnouncement(int presenterID, String title, String body) throws SQLException {
+        if (presenterID <= 0 || title == null || title.trim().isEmpty() || body == null || body.trim().isEmpty()) {
+            return false;
+        }
+        String sql = "INSERT INTO presenter_announcement(tertiaryPresenterID, title, body, createdAt) "
+                + "VALUES(?,?,?,CURRENT_TIMESTAMP)";
+        try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, presenterID);
+            ps.setString(2, title.trim());
+            ps.setString(3, body.trim());
+            return ps.executeUpdate() > 0;
+        }
+    }
+
     private List<Map<String, Object>> runListQuery(String sql, int presenterID) throws SQLException {
         List<Map<String, Object>> rows = new ArrayList<>();
         try (Connection conn = DatabaseConnection.getConnection();

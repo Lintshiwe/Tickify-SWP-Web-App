@@ -39,17 +39,19 @@ public class UserDAO {
     }
 
     private boolean supportsUsernameByRole(String role) {
-        if (role == null) {
+        String normalized = normalizeClientRole(role);
+        if (normalized == null) {
             return false;
         }
-        return "ATTENDEE".equals(role) || "TERTIARY_PRESENTER".equals(role);
+        return "ATTENDEE".equals(normalized) || "TERTIARY_PRESENTER".equals(normalized);
     }
 
     private String tableForRole(String chosenRole) {
-        if (chosenRole == null) {
+        String normalized = normalizeClientRole(chosenRole);
+        if (normalized == null) {
             return null;
         }
-        switch (chosenRole) {
+        switch (normalized) {
             case "ADMIN":
                 return "admin";
             case "EVENT_MANAGER":
@@ -69,9 +71,15 @@ public class UserDAO {
         if (role == null) {
             return null;
         }
-        String normalized = role.trim().toUpperCase();
+        String normalized = role.trim().toUpperCase().replace('-', '_').replace(' ', '_');
         if ("PRESENTER".equals(normalized)) {
             return "TERTIARY_PRESENTER";
+        }
+        if ("MANAGER".equals(normalized)) {
+            return "EVENT_MANAGER";
+        }
+        if ("GUARD".equals(normalized)) {
+            return "VENUE_GUARD";
         }
         return normalized;
     }
@@ -139,10 +147,11 @@ public class UserDAO {
     }
 
     private String idColumnForRole(String chosenRole) {
-        if (chosenRole == null) {
+        String normalized = normalizeClientRole(chosenRole);
+        if (normalized == null) {
             return null;
         }
-        switch (chosenRole) {
+        switch (normalized) {
             case "ADMIN":
                 return "adminID";
             case "EVENT_MANAGER":

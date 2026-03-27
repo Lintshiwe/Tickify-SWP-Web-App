@@ -42,31 +42,31 @@ public class EmailService {
         boolean tls = Boolean.parseBoolean(optional("TICKIFY_SMTP_STARTTLS", "tickify.smtp.starttls", "true"));
         boolean ssl = Boolean.parseBoolean(optional("TICKIFY_SMTP_SSL", "tickify.smtp.ssl", "false"));
 
-        Properties props = new Properties();
-        props.put("mail.smtp.auth", "true");
-        props.put("mail.smtp.host", host);
-        props.put("mail.smtp.port", port);
-        props.put("mail.smtp.starttls.enable", String.valueOf(tls));
-        props.put("mail.smtp.ssl.enable", String.valueOf(ssl));
-
-        Session session = Session.getInstance(props, new Authenticator() {
-            @Override
-            protected PasswordAuthentication getPasswordAuthentication() {
-                return new PasswordAuthentication(user, pass);
-            }
-        });
-
-        MimeMessage message = new MimeMessage(session);
-        message.setFrom(new InternetAddress(from, "Tickify Security"));
-        message.setRecipient(Message.RecipientType.TO, new InternetAddress(toEmail));
-        message.setSubject("Tickify Password Reset Request", "UTF-8");
-
         String logoUrl = optional("TICKIFY_LOGO_URL", "tickify.logo.url", "https://tickify.example/assets/tickify-logo.svg");
         String inlineLogoSvg = defaultInlineLogoSvg();
         String html = buildProfessionalResetHtml(logoUrl, resetLink, inlineLogoSvg != null && !inlineLogoSvg.trim().isEmpty());
-        message.setContent(html, "text/html; charset=UTF-8");
 
         try {
+            Properties props = new Properties();
+            props.put("mail.smtp.auth", "true");
+            props.put("mail.smtp.host", host);
+            props.put("mail.smtp.port", port);
+            props.put("mail.smtp.starttls.enable", String.valueOf(tls));
+            props.put("mail.smtp.ssl.enable", String.valueOf(ssl));
+
+            Session session = Session.getInstance(props, new Authenticator() {
+                @Override
+                protected PasswordAuthentication getPasswordAuthentication() {
+                    return new PasswordAuthentication(user, pass);
+                }
+            });
+
+            MimeMessage message = new MimeMessage(session);
+            message.setFrom(new InternetAddress(from, "Tickify Security"));
+            message.setRecipient(Message.RecipientType.TO, new InternetAddress(toEmail));
+            message.setSubject("Tickify Password Reset Request", "UTF-8");
+            message.setContent(html, "text/html; charset=UTF-8");
+
             Transport.send(message);
         } catch (Throwable primaryFailure) {
             // Work around JVM TLS classpath conflicts by relaying via python3 smtplib.
@@ -97,20 +97,6 @@ public class EmailService {
         boolean tls = Boolean.parseBoolean(optional("TICKIFY_SMTP_STARTTLS", "tickify.smtp.starttls", "true"));
         boolean ssl = Boolean.parseBoolean(optional("TICKIFY_SMTP_SSL", "tickify.smtp.ssl", "false"));
 
-        Properties props = new Properties();
-        props.put("mail.smtp.auth", "true");
-        props.put("mail.smtp.host", host);
-        props.put("mail.smtp.port", port);
-        props.put("mail.smtp.starttls.enable", String.valueOf(tls));
-        props.put("mail.smtp.ssl.enable", String.valueOf(ssl));
-
-        Session session = Session.getInstance(props, new Authenticator() {
-            @Override
-            protected PasswordAuthentication getPasswordAuthentication() {
-                return new PasswordAuthentication(user, pass);
-            }
-        });
-
         String logoUrl = optional("TICKIFY_LOGO_URL", "tickify.logo.url", "https://tickify.example/assets/tickify-logo.svg");
         String inlineLogoSvg = defaultInlineLogoSvg();
         String html = buildTicketPurchaseHtml(logoUrl, inlineLogoSvg != null && !inlineLogoSvg.trim().isEmpty(), attendeeName,
@@ -118,13 +104,27 @@ public class EmailService {
         String text = buildTicketPurchaseText(attendeeName, transactionRef, tickets, myTicketsLink);
         List<MailAttachment> attachments = buildTicketPdfAttachments(tickets);
 
-        MimeMessage message = new MimeMessage(session);
-        message.setFrom(new InternetAddress(from, "Tickify Tickets"));
-        message.setRecipient(Message.RecipientType.TO, new InternetAddress(toEmail));
-        message.setSubject("Your Tickify Ticket Purchase", "UTF-8");
-        message.setContent(html, "text/html; charset=UTF-8");
-
         try {
+            Properties props = new Properties();
+            props.put("mail.smtp.auth", "true");
+            props.put("mail.smtp.host", host);
+            props.put("mail.smtp.port", port);
+            props.put("mail.smtp.starttls.enable", String.valueOf(tls));
+            props.put("mail.smtp.ssl.enable", String.valueOf(ssl));
+
+            Session session = Session.getInstance(props, new Authenticator() {
+                @Override
+                protected PasswordAuthentication getPasswordAuthentication() {
+                    return new PasswordAuthentication(user, pass);
+                }
+            });
+
+            MimeMessage message = new MimeMessage(session);
+            message.setFrom(new InternetAddress(from, "Tickify Tickets"));
+            message.setRecipient(Message.RecipientType.TO, new InternetAddress(toEmail));
+            message.setSubject("Your Tickify Ticket Purchase", "UTF-8");
+            message.setContent(html, "text/html; charset=UTF-8");
+
             Transport.send(message);
         } catch (Throwable primaryFailure) {
             try {

@@ -105,6 +105,58 @@ public class AdvertDAO {
         }
     }
 
+    public boolean updateAdvert(int advertID, String organizationName, String title, String details, String venue,
+            Date eventDate, boolean paidOrganization, boolean selectedForDisplay, boolean active,
+            String imageFilename, String imageMimeType, byte[] imageData) throws SQLException {
+        String sqlWithImage = "UPDATE advert SET organizationName = ?, title = ?, details = ?, venue = ?, eventDate = ?, "
+                + "paidOrganization = ?, selectedForDisplay = ?, active = ?, imageFilename = ?, imageMimeType = ?, imageData = ? "
+                + "WHERE advertID = ?";
+        String sqlWithoutImage = "UPDATE advert SET organizationName = ?, title = ?, details = ?, venue = ?, eventDate = ?, "
+                + "paidOrganization = ?, selectedForDisplay = ?, active = ? WHERE advertID = ?";
+
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            if (imageData != null && imageData.length > 0) {
+                try (PreparedStatement ps = conn.prepareStatement(sqlWithImage)) {
+                    ps.setString(1, organizationName);
+                    ps.setString(2, title);
+                    ps.setString(3, details);
+                    ps.setString(4, venue);
+                    ps.setDate(5, eventDate);
+                    ps.setBoolean(6, paidOrganization);
+                    ps.setBoolean(7, selectedForDisplay);
+                    ps.setBoolean(8, active);
+                    ps.setString(9, imageFilename);
+                    ps.setString(10, imageMimeType);
+                    ps.setBytes(11, imageData);
+                    ps.setInt(12, advertID);
+                    return ps.executeUpdate() > 0;
+                }
+            }
+
+            try (PreparedStatement ps = conn.prepareStatement(sqlWithoutImage)) {
+                ps.setString(1, organizationName);
+                ps.setString(2, title);
+                ps.setString(3, details);
+                ps.setString(4, venue);
+                ps.setDate(5, eventDate);
+                ps.setBoolean(6, paidOrganization);
+                ps.setBoolean(7, selectedForDisplay);
+                ps.setBoolean(8, active);
+                ps.setInt(9, advertID);
+                return ps.executeUpdate() > 0;
+            }
+        }
+    }
+
+    public boolean deleteAdvert(int advertID) throws SQLException {
+        String sql = "DELETE FROM advert WHERE advertID = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, advertID);
+            return ps.executeUpdate() > 0;
+        }
+    }
+
     public Map<String, Object> getAdvertImage(int advertID) throws SQLException {
         String sql = "SELECT imageMimeType, imageData FROM advert WHERE advertID = ?";
         try (Connection conn = DatabaseConnection.getConnection();

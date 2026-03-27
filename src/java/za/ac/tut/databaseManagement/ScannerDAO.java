@@ -3,12 +3,17 @@ package za.ac.tut.databaseManagement;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import za.ac.tut.databaseConnection.DatabaseConnection;
 
 public class ScannerDAO {
@@ -223,6 +228,40 @@ public class ScannerDAO {
             ps.setTimestamp(6, Timestamp.from(Instant.now()));
             ps.executeUpdate();
         }
+    }
+
+    public List<Map<String, Object>> getAttendeeListForGuardEvent(int venueGuardId, int limit) throws SQLException {
+        int safeLimit = limit <= 0 ? 200 : Math.min(limit, 1000);
+        String sql = "SELECT DISTINCT a.attendeeID, a.username, a.firstname, a.lastname, a.email "
+                + "FROM venue_guard vg "
+                + "JOIN event_has_ticket eht ON eht.eventID = vg.eventID "
+                + "JOIN attendee_has_ticket aht ON aht.ticketID = eht.ticketID "
+                + "JOIN attendee a ON a.attendeeID = aht.attendeeID "
+                + "WHERE vg.venueGuardID = ? "
+                + "ORDER BY a.firstname, a.lastname "
+                + "FETCH FIRST " + safeLimit + " ROWS ONLY";
+
+        List<Map<String, Object>> rows = new ArrayList<>();
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, venueGuardId);
+            try (ResultSet rs = ps.executeQuery()) {
+                ResultSetMetaData meta = rs.getMetaData();
+                int cols = meta.getColumnCount();
+                while (rs.next()) {
+                    Map<String, Object> row = new HashMap<>();
+                    for (int i = 1; i <= cols; i++) {
+                        String label = meta.getColumnLabel(i);
+                        if (label == null || label.trim().isEmpty()) {
+                            label = meta.getColumnName(i);
+                        }
+                        row.put(label, rs.getObject(i));
+                    }
+                    rows.add(row);
+                }
+            }
+        }
+        return rows;
     }
 
     private static class TicketSnapshot {

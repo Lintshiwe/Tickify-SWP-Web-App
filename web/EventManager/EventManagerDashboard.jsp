@@ -18,11 +18,15 @@
         .logout { text-decoration:none; background:#eef8e9; color:var(--green-dark); border:1px solid #cfe2c9; border-radius:10px; padding:10px 12px; font-weight:800; }
         .grid { margin-top:12px; display:grid; grid-template-columns:1fr 1fr; gap:10px; }
         .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px; }
+        .flash { margin-top:10px; border-radius:10px; padding:10px 12px; font-weight:800; }
+        .ok { background:#eaf7e7; color:#1f7c39; border:1px solid #cce6c7; }
+        .err { background:#ffecec; color:#9b1c1c; border:1px solid #f0c2c2; }
         .full { grid-column:1/-1; }
         .kpis { margin-top:12px; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
         .kpi { background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px; }
         .kpi strong { display:block; font-size:1.3rem; color:#31502f; }
         .kpi span { color:var(--muted); font-size:.9rem; }
+        .btn-primary { border:1px solid #6eb83f; background:var(--green); color:#fff; border-radius:10px; padding:9px 12px; font-weight:800; cursor:pointer; }
         .state-attention { color:#8b2d1f; font-weight:700; }
         .state-ok { color:#2e6b2a; font-weight:700; }
         .table-wrap { margin-top:8px; overflow:auto; border:1px solid #e2ece0; border-radius:10px; }
@@ -51,6 +55,33 @@
             <a class="logout" href="${pageContext.request.contextPath}/LogoutServlet.do">Logout</a>
         </div>
 
+        <c:if test="${param.msg != null}">
+            <div class="flash ok">
+                <c:choose>
+                    <c:when test="${param.msg == 'EventUpdated'}">Assigned event details updated successfully.</c:when>
+                    <c:when test="${param.msg == 'TierCreated'}">Ticket tier templates were created successfully.</c:when>
+                    <c:when test="${param.msg == 'NoChange'}">No changes were applied.</c:when>
+                    <c:otherwise>Operation completed successfully.</c:otherwise>
+                </c:choose>
+            </div>
+        </c:if>
+        <c:if test="${param.err != null}">
+            <div class="flash err">
+                <c:choose>
+                    <c:when test="${param.err == 'UnknownAction'}">Unknown manager action requested.</c:when>
+                    <c:when test="${param.err == 'InvalidEventId'}">Please provide a valid event ID.</c:when>
+                    <c:when test="${param.err == 'InvalidEventName'}">Event name must be between 3 and 120 characters.</c:when>
+                    <c:when test="${param.err == 'InvalidEventType'}">Event type must be between 2 and 80 characters.</c:when>
+                    <c:when test="${param.err == 'InvalidEventDate'}">Please provide a valid event date and time.</c:when>
+                    <c:when test="${param.err == 'InvalidTierName'}">Tier name must be between 2 and 80 characters.</c:when>
+                    <c:when test="${param.err == 'InvalidTierPrice'}">Tier price must be greater than 0.</c:when>
+                    <c:when test="${param.err == 'InvalidTierQuantity'}">Tier quantity must be greater than 0.</c:when>
+                    <c:when test="${param.err == 'OperationFailed'}">Operation failed. Check your input and try again.</c:when>
+                    <c:otherwise>Unable to process request.</c:otherwise>
+                </c:choose>
+            </div>
+        </c:if>
+
         <section class="kpis">
             <article class="kpi"><strong>${eventCount}</strong><span>Assigned Events</span></article>
             <article class="kpi"><strong>${guardCount}</strong><span>Guard Profiles</span></article>
@@ -62,6 +93,28 @@
             <section class="card full">
                 <h1>Event Operations Hub</h1>
                 <p>Live operational view generated from assigned events, guard scans, presenters, and ticket sales.</p>
+
+                <h2 style="margin-top:10px;">Update Assigned Event Details</h2>
+                <form action="${pageContext.request.contextPath}/EventManagerDashboard.do" method="POST" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;align-items:end;">
+                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                    <input type="hidden" name="action" value="updateAssignedEvent">
+                    <input type="number" name="eventID" min="1" placeholder="Event ID" required>
+                    <input type="text" name="eventName" placeholder="Event Name" required>
+                    <input type="text" name="eventType" placeholder="Event Type" required>
+                    <input type="datetime-local" name="eventDate" required>
+                    <button class="btn-primary" type="submit">Update Event</button>
+                </form>
+
+                <h2 style="margin-top:10px;">Create Ticket Tier</h2>
+                <form action="${pageContext.request.contextPath}/EventManagerDashboard.do" method="POST" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;align-items:end;">
+                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                    <input type="hidden" name="action" value="createTicketTier">
+                    <input type="number" name="eventID" min="1" placeholder="Event ID" required>
+                    <input type="text" name="tierName" placeholder="Tier Name" required>
+                    <input type="number" step="0.01" min="0" name="tierPrice" placeholder="Price" required>
+                    <input type="number" min="1" name="tierQuantity" placeholder="Quantity" required>
+                    <button class="btn-primary" type="submit">Create Tier</button>
+                </form>
             </section>
 
             <section class="card">

@@ -220,6 +220,14 @@
             <h2>Recent Checks</h2>
             <table><thead><tr><th>Ticket</th><th>Result</th><th>Time</th></tr></thead><tbody id="recentBody"><tr><td colspan="3">No scans yet.</td></tr></tbody></table>
         </section>
+        <section class="card">
+            <h2>Attendee Verification List</h2>
+            <p>Attendees linked to your assigned event for gate verification.</p>
+            <table>
+                <thead><tr><th>ID</th><th>Username</th><th>Name</th><th>Email</th></tr></thead>
+                <tbody id="guardAttendeeBody"><tr><td colspan="4">Loading attendees...</td></tr></tbody>
+            </table>
+        </section>
     </div>
     <script>
         const csrfToken = "${sessionScope.csrfToken}";
@@ -632,7 +640,39 @@
             body.innerHTML = recentResults.map(function (item) { return "<tr><td>" + item.code + "</td><td>" + item.result + "</td><td>" + item.time + "</td></tr>"; }).join("");
         }
 
+        async function loadGuardAttendees() {
+            const tbody = document.getElementById("guardAttendeeBody");
+            if (!tbody) {
+                return;
+            }
+            try {
+                const res = await fetch("../VenueGuardAttendees.do", { credentials: "same-origin" });
+                const payload = await res.json();
+                if (!res.ok || !payload.ok) {
+                    tbody.innerHTML = "<tr><td colspan=\"4\">Unable to load attendee list.</td></tr>";
+                    return;
+                }
+                const rows = Array.isArray(payload.rows) ? payload.rows : [];
+                if (rows.length === 0) {
+                    tbody.innerHTML = "<tr><td colspan=\"4\">No attendees found for this event yet.</td></tr>";
+                    return;
+                }
+                tbody.innerHTML = rows.map(function (row) {
+                    const fullName = ((row.firstname || "") + " " + (row.lastname || "")).trim();
+                    return "<tr>"
+                        + "<td>" + (row.attendeeID == null ? "" : row.attendeeID) + "</td>"
+                        + "<td>" + (row.username || "") + "</td>"
+                        + "<td>" + fullName + "</td>"
+                        + "<td>" + (row.email || "") + "</td>"
+                        + "</tr>";
+                }).join("");
+            } catch (e) {
+                tbody.innerHTML = "<tr><td colspan=\"4\">Unable to load attendee list.</td></tr>";
+            }
+        }
+
         handleScannerReturn();
+        loadGuardAttendees();
     </script>
     <script src="${pageContext.request.contextPath}/assets/error-popup.js"></script>
 </body>

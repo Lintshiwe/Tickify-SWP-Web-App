@@ -1,11 +1,13 @@
 package za.ac.tut.databaseManagement;
 
 import java.sql.Connection;
+import java.sql.Statement;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -131,6 +133,108 @@ public class EventManagerDashboardDAO {
                 + "WHERE m.eventManagerID = ? "
                 + "AND e.eventID IS NULL";
         return runCount(sql, eventManagerId);
+    }
+
+    public boolean updateAssignedEventDetails(int eventManagerId, int eventId, String eventName,
+            String eventType, Timestamp eventDate) throws SQLException {
+        if (eventManagerId <= 0 || eventId <= 0 || eventDate == null
+                || eventName == null || eventName.trim().isEmpty()
+                || eventType == null || eventType.trim().isEmpty()) {
+            return false;
+        }
+
+        String sql = "UPDATE event SET name = ?, type = ?, date = ? "
+                + "WHERE eventID = ? AND EXISTS ("
+                + "SELECT 1 FROM event_has_manager ehm WHERE ehm.eventID = event.eventID AND ehm.eventManagerID = ?)";
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, eventName.trim());
+            ps.setString(2, eventType.trim());
+            ps.setTimestamp(3, eventDate);
+            ps.setInt(4, eventId);
+            ps.setInt(5, eventManagerId);
+            return ps.executeUpdate() > 0;
+        }
+    }
+
+    public boolean addTicketTierForAssignedEvent(int eventManagerId, int eventId, String tierName,
+            BigDecimal price, int quantity) throws SQLException {
+        if (eventManagerId <= 0 || eventId <= 0 || quantity <= 0 || price == null
+                || tierName == null || tierName.trim().isEmpty()) {
+            return false;
+        }
+
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                if (!isEventAssignedToManager(conn, eventManagerId, eventId)) {
+                    conn.rollback();
+                    return false;
+                }
+
+                try (PreparedStatement qrInsert = conn.prepareStatement(
+                        "INSERT INTO qrcode(barstring, number) VALUES(?, ?)", Statement.RETURN_GENERATED_KEYS);
+                     PreparedStatement ticketInsert = conn.prepareStatement(
+                        "INSERT INTO ticket(name, price, QRcodeID) VALUES(?, ?, ?)", Statement.RETURN_GENERATED_KEYS);
+                     PreparedStatement mapInsert = conn.prepareStatement(
+                        "INSERT INTO event_has_ticket(eventID, ticketID) VALUES(?, ?)")) {
+
+                    long marker = System.currentTimeMillis();
+                    for (int i = 1; i <= quantity; i++) {
+                        String qrPayload = "EM-" + eventId + "-" + marker + "-" + i;
+                        qrInsert.setString(1, qrPayload);
+                        qrInsert.setInt(2, (int) ((marker % 1000000) + i));
+                        qrInsert.executeUpdate();
+
+                        int qrId;
+                        try (ResultSet qrKeys = qrInsert.getGeneratedKeys()) {
+                            if (!qrKeys.next()) {
+                                conn.rollback();
+                                return false;
+                            }
+                            qrId = qrKeys.getInt(1);
+                        }
+
+                        ticketInsert.setString(1, tierName.trim() + " #" + i);
+                        ticketInsert.setBigDecimal(2, price);
+                        ticketInsert.setInt(3, qrId);
+                        ticketInsert.executeUpdate();
+
+                        int ticketId;
+                        try (ResultSet ticketKeys = ticketInsert.getGeneratedKeys()) {
+                            if (!ticketKeys.next()) {
+                                conn.rollback();
+                                return false;
+                            }
+                            ticketId = ticketKeys.getInt(1);
+                        }
+
+                        mapInsert.setInt(1, eventId);
+                        mapInsert.setInt(2, ticketId);
+                        mapInsert.executeUpdate();
+                    }
+                }
+
+                conn.commit();
+                return true;
+            } catch (SQLException ex) {
+                conn.rollback();
+                throw ex;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        }
+    }
+
+    private boolean isEventAssignedToManager(Connection conn, int eventManagerId, int eventId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT 1 FROM event_has_manager WHERE eventManagerID = ? AND eventID = ?")) {
+            ps.setInt(1, eventManagerId);
+            ps.setInt(2, eventId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
     }
 
     private int runCount(String sql, int eventManagerId) throws SQLException {

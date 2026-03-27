@@ -383,6 +383,94 @@ public class DatabaseInitializer {
                 ")"
             );
         }
+
+        if (!tableExists(conn, "EVENT_PROPOSAL")) {
+            st.execute(
+                "CREATE TABLE event_proposal (" +
+                "  proposalID         INT NOT NULL GENERATED ALWAYS AS IDENTITY PRIMARY KEY," +
+                "  submittedByAdminID INT NOT NULL," +
+                "  venueID            INT NOT NULL," +
+                "  eventName          VARCHAR(120) NOT NULL," +
+                "  eventType          VARCHAR(80) NOT NULL," +
+                "  eventDate          TIMESTAMP NOT NULL," +
+                "  notes              VARCHAR(1024)," +
+                "  status             VARCHAR(20) NOT NULL," +
+                "  reviewedByAdminID  INT," +
+                "  reviewedAt         TIMESTAMP," +
+                "  reviewNote         VARCHAR(1024)," +
+                "  createdAt          TIMESTAMP NOT NULL," +
+                "  FOREIGN KEY (submittedByAdminID) REFERENCES admin(adminID)," +
+                "  FOREIGN KEY (venueID) REFERENCES venue(venueID)," +
+                "  FOREIGN KEY (reviewedByAdminID) REFERENCES admin(adminID)" +
+                ")"
+            );
+        }
+
+        if (!tableExists(conn, "ATTENDEE_REFUND_REQUEST")) {
+            st.execute(
+                "CREATE TABLE attendee_refund_request (" +
+                "  refundRequestID     INT NOT NULL GENERATED ALWAYS AS IDENTITY PRIMARY KEY," +
+                "  attendeeID          INT NOT NULL," +
+                "  orderID             INT," +
+                "  eventID             INT," +
+                "  requestedByAdminID  INT NOT NULL," +
+                "  reason              VARCHAR(1024)," +
+                "  status              VARCHAR(20) NOT NULL," +
+                "  resolutionNote      VARCHAR(1024)," +
+                "  resolvedByAdminID   INT," +
+                "  requestedAt         TIMESTAMP NOT NULL," +
+                "  resolvedAt          TIMESTAMP," +
+                "  FOREIGN KEY (attendeeID) REFERENCES attendee(attendeeID)," +
+                "  FOREIGN KEY (orderID) REFERENCES attendee_order(orderID)," +
+                "  FOREIGN KEY (eventID) REFERENCES event(eventID)," +
+                "  FOREIGN KEY (requestedByAdminID) REFERENCES admin(adminID)," +
+                "  FOREIGN KEY (resolvedByAdminID) REFERENCES admin(adminID)" +
+                ")"
+            );
+        }
+
+        if (!tableExists(conn, "PRESENTER_MATERIAL")) {
+            st.execute(
+                "CREATE TABLE presenter_material (" +
+                "  materialID          INT NOT NULL GENERATED ALWAYS AS IDENTITY PRIMARY KEY," +
+                "  tertiaryPresenterID INT NOT NULL," +
+                "  title               VARCHAR(180) NOT NULL," +
+                "  materialUrl         VARCHAR(512)," +
+                "  description         VARCHAR(1024)," +
+                "  createdAt           TIMESTAMP NOT NULL," +
+                "  FOREIGN KEY (tertiaryPresenterID) REFERENCES tertiary_presenter(tertiaryPresenterID)" +
+                ")"
+            );
+        }
+
+        if (!tableExists(conn, "PRESENTER_SCHEDULE_ITEM")) {
+            st.execute(
+                "CREATE TABLE presenter_schedule_item (" +
+                "  scheduleItemID      INT NOT NULL GENERATED ALWAYS AS IDENTITY PRIMARY KEY," +
+                "  tertiaryPresenterID INT NOT NULL," +
+                "  title               VARCHAR(180) NOT NULL," +
+                "  startsAt            TIMESTAMP NOT NULL," +
+                "  endsAt              TIMESTAMP," +
+                "  room                VARCHAR(120)," +
+                "  notes               VARCHAR(1024)," +
+                "  createdAt           TIMESTAMP NOT NULL," +
+                "  FOREIGN KEY (tertiaryPresenterID) REFERENCES tertiary_presenter(tertiaryPresenterID)" +
+                ")"
+            );
+        }
+
+        if (!tableExists(conn, "PRESENTER_ANNOUNCEMENT")) {
+            st.execute(
+                "CREATE TABLE presenter_announcement (" +
+                "  announcementID      INT NOT NULL GENERATED ALWAYS AS IDENTITY PRIMARY KEY," +
+                "  tertiaryPresenterID INT NOT NULL," +
+                "  title               VARCHAR(180) NOT NULL," +
+                "  body                VARCHAR(1600) NOT NULL," +
+                "  createdAt           TIMESTAMP NOT NULL," +
+                "  FOREIGN KEY (tertiaryPresenterID) REFERENCES tertiary_presenter(tertiaryPresenterID)" +
+                ")"
+            );
+        }
  
         st.close();
     }
