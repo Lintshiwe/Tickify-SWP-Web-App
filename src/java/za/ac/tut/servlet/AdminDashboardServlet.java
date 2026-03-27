@@ -12,6 +12,7 @@ import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
 import za.ac.tut.databaseManagement.AdminITDAO;
 
 public class AdminDashboardServlet extends HttpServlet {
@@ -72,6 +73,30 @@ public class AdminDashboardServlet extends HttpServlet {
                         parseInt(req(request, "eventID"))
                 );
                 redirectWithMsg(request, response, "UserCreated");
+                return;
+            }
+
+            if ("updateMyProfile".equals(action)) {
+                String updatedEmail = req(request, "email").toLowerCase();
+                boolean updated = adminITDAO.updateOwnAdminProfile(
+                        adminId,
+                        req(request, "firstName"),
+                        req(request, "lastName"),
+                        updatedEmail,
+                        param(request, "newPassword")
+                );
+                if (updated) {
+                    HttpSession session = request.getSession();
+                    String legalName = req(request, "firstName") + " " + req(request, "lastName");
+                    session.setAttribute("userEmail", updatedEmail);
+                    session.setAttribute("userLoginId", updatedEmail);
+                    session.setAttribute("userFullName", legalName);
+                    session.setAttribute("userLegalName", legalName);
+                    if (adminITDAO.isPrivilegedAdmin(adminId)) {
+                        session.setAttribute("userCampusName", "Tickify Admin");
+                    }
+                }
+                redirectWithMsg(request, response, updated ? "ProfileUpdated" : "NoChange");
                 return;
             }
 
@@ -295,6 +320,10 @@ public class AdminDashboardServlet extends HttpServlet {
                 redirectWithErr(request, response, "MissingFields");
                 return;
             }
+            if (ex.getMessage() != null && ex.getMessage().contains("EmailInUse")) {
+                redirectWithErr(request, response, "EmailInUse");
+                return;
+            }
             if (ex.getMessage() != null && ex.getMessage().contains("CampusScopeDenied")) {
                 redirectWithErr(request, response, "CampusScopeDenied");
                 return;
@@ -341,7 +370,17 @@ public class AdminDashboardServlet extends HttpServlet {
             reconPage = reconTotalPages;
         }
 
+        boolean isPrivilegedAdmin = adminITDAO.isPrivilegedAdmin(adminId);
+        String adminCampusDisplayName = (String) request.getSession().getAttribute("userCampusName");
+        if (isPrivilegedAdmin) {
+            adminCampusDisplayName = "Tickify Admin";
+        }
+        if (adminCampusDisplayName == null || adminCampusDisplayName.trim().isEmpty()) {
+            adminCampusDisplayName = "Campus Unassigned";
+        }
+
         request.setAttribute("metrics", adminITDAO.getDashboardMetrics());
+        request.setAttribute("myAdminProfile", adminITDAO.getAdminProfile(adminId));
         request.setAttribute("admins", adminITDAO.getAdminsForScope(adminId));
         request.setAttribute("guards", adminITDAO.getGuardsForScope(adminId));
         request.setAttribute("managers", adminITDAO.getManagersForScope(adminId));
@@ -360,7 +399,8 @@ public class AdminDashboardServlet extends HttpServlet {
         request.setAttribute("auditFrom", auditFrom);
         request.setAttribute("auditTo", auditTo);
         request.setAttribute("rootPasswordStatus", adminITDAO.getRootPasswordStatusForAdmin(adminId));
-        request.setAttribute("isPrivilegedAdmin", adminITDAO.isPrivilegedAdmin(adminId));
+        request.setAttribute("isPrivilegedAdmin", isPrivilegedAdmin);
+        request.setAttribute("adminCampusDisplayName", adminCampusDisplayName);
         request.setAttribute("ticketIntelligence", adminITDAO.getTicketIntelligenceForScope(adminId));
         request.setAttribute("campusRevenue", adminITDAO.getCampusRevenueReportForScope(adminId));
         request.setAttribute("campusOwnership", adminITDAO.getCampusOwnershipReportForScope(adminId));
@@ -460,6 +500,7 @@ public class AdminDashboardServlet extends HttpServlet {
 
     private boolean isMutationAction(String action) {
         return "createAdmin".equals(action)
+                || "updateMyProfile".equals(action)
                 || "createGuard".equals(action)
                 || "provisionGuard".equals(action)
                 || "createManager".equals(action)

@@ -407,6 +407,11 @@
             color:#3f5043;
             font-weight:700;
         }
+        .event-available-label {
+            font-size:.82rem;
+            color:#4f6250;
+            font-weight:700;
+        }
         .sold-track {
             width:100%;
             height:8px;
@@ -429,6 +434,14 @@
             border-radius:8px;
             padding:7px 8px;
             line-height:1.3;
+        }
+        .soldout-warning.soldout-hard {
+            background:#fde2e1;
+            border-color:#f8b4b1;
+            color:#9b1c1c;
+        }
+        .event-card.sold-out {
+            box-shadow:0 8px 20px rgba(120,20,20,.08);
         }
         .actions {
             display:grid;
@@ -507,7 +520,6 @@
             max-height:92vh;
             overflow:auto;
             background:#fff;
-            border:1px solid #dce6d7;
             border-radius:16px;
             box-shadow:0 24px 44px rgba(0,0,0,.28);
         }
@@ -557,16 +569,18 @@
             z-index:3;
         }
         .preview-content {
-            padding:14px;
-            display:grid;
-            grid-template-columns:1.5fr 1fr;
-            gap:12px;
+            padding:16px;
+            display:flex;
+            flex-direction:column;
+            gap:14px;
         }
         .preview-section {
-            border:1px solid #e5ece2;
-            border-radius:12px;
-            padding:12px;
-            background:#fbfef9;
+            padding:0;
+            background:transparent;
+        }
+        .preview-section + .preview-section {
+            border-top:1px solid #e7efe2;
+            padding-top:14px;
         }
         .preview-section h4 {
             margin:0 0 8px;
@@ -575,14 +589,15 @@
         }
         .preview-detail-list {
             display:grid;
-            grid-template-columns:repeat(2,minmax(0,1fr));
-            gap:8px;
+            grid-template-columns:1fr;
+            gap:0;
         }
         .preview-detail {
-            border:1px solid #e4ece0;
-            border-radius:10px;
-            background:#fff;
-            padding:8px;
+            border-bottom:1px solid #edf3ea;
+            padding:8px 0;
+        }
+        .preview-detail:last-child {
+            border-bottom:none;
         }
         .preview-detail strong {
             display:block;
@@ -593,6 +608,7 @@
             margin-bottom:3px;
         }
         .preview-detail span {
+            display:block;
             color:#253126;
             font-weight:700;
             font-size:.92rem;
@@ -673,22 +689,24 @@
             margin:0 0 14px;
             background:#ffffff;
             border:1px solid #e3eee0;
-            border-radius:14px;
+            border-radius:18px;
             box-shadow:0 8px 20px rgba(33,47,32,.08);
             overflow:hidden;
             position:relative;
-            width:calc(100% + 1in);
-            margin-left:calc(-0.5in);
+            width:100%;
+            margin-left:0;
         }
         .ad-track {
             display:flex;
             transition:transform .55s ease;
+            border-radius:inherit;
         }
         .ad-card {
             min-width:100%;
             position:relative;
             height:330px;
             overflow:hidden;
+            border-radius:inherit;
         }
         .ad-image {
             position:absolute;
@@ -794,8 +812,6 @@
             .cart-form, .wish-form { width:100%; }
             .actions { grid-template-columns:1fr; }
             .wish-form { justify-content:flex-start; }
-            .preview-content { grid-template-columns:1fr; }
-            .preview-detail-list { grid-template-columns:1fr; }
             .preview-actions { grid-template-columns:1fr; }
             .qty-stepper button {
                 width:38px;
@@ -977,6 +993,8 @@
                         Checkout failed. Please try again.
                     <% } else if ("AgeRestricted".equals(err)) { %>
                         Your account is under 18 and cannot purchase tickets for this event type.
+                    <% } else if ("SoldOut".equals(err)) { %>
+                        This event is sold out. Live stock changed before your action completed.
                     <% } else { %>
                         Action failed. Please try again.
                     <% } %>
@@ -997,7 +1015,7 @@
                     <c:choose>
                         <c:when test="${not empty eventList}">
                             <c:forEach var="event" items="${eventList}">
-                                <article class="event-card searchable-card" data-event-id="${event.id}" data-search="${event.name} ${event.type} ${event.venueName} ${event.address} ${event.date}" data-name="${event.name}" data-type="${event.type}" data-price="${event.price}" data-date="${event.date}" data-venue="${event.venueName}" data-address="${event.address}" data-total-tickets="${event.totalTickets}" data-sold-tickets="${event.soldTickets}" data-sold-percentage="${event.soldPercentage}" data-wishlisted="${event.wishlisted}" data-purchased="${event.purchased}" data-album-url="EventAlbumImage.do?eventID=${event.id}">
+                                <article class="event-card searchable-card${event.soldOut ? ' sold-out' : ''}" data-event-id="${event.id}" data-search="${event.name} ${event.type} ${event.venueName} ${event.address} ${event.date}" data-name="${event.name}" data-type="${event.type}" data-price="${event.price}" data-date="${event.date}" data-venue="${event.venueName}" data-address="${event.address}" data-total-tickets="${event.totalTickets}" data-sold-tickets="${event.soldTickets}" data-available-tickets="${event.availableTickets}" data-sold-percentage="${event.soldPercentage}" data-wishlisted="${event.wishlisted}" data-purchased="${event.purchased}" data-album-url="EventAlbumImage.do?eventID=${event.id}">
                                     <div class="ticket-hero">
                                         <img class="ticket-album" src="EventAlbumImage.do?eventID=${event.id}" alt="${event.name} album" onerror="this.style.display='none';">
                                         <div class="ticket-hero-actions">
@@ -1022,11 +1040,20 @@
                                         <p>${event.date}</p>
                                         <div class="price"><c:choose><c:when test="${event.price > 0}">R ${event.price}</c:when><c:otherwise>FREE</c:otherwise></c:choose></div>
                                         <div class="sold-status">
-                                            <div class="sold-label">Tickets sold: ${event.soldPercentage}%</div>
-                                            <div class="sold-track"><div class="sold-fill" style="width:${event.soldPercentage}%;"></div></div>
-                                            <c:if test="${event.wishlisted and not event.purchased and event.nearlySoldOut}">
-                                                <div class="soldout-warning">This event is almost sold out. You added it to wishlist, buy soon.</div>
-                                            </c:if>
+                                            <div class="sold-label event-sold-label">Tickets sold: ${event.soldPercentage}%</div>
+                                            <div class="sold-track"><div class="sold-fill event-sold-fill" style="width:${event.soldPercentage}%;"></div></div>
+                                            <div class="event-available-label">Available: ${event.availableTickets} / ${event.totalTickets}</div>
+                                            <c:choose>
+                                                <c:when test="${event.soldOut}">
+                                                    <div class="soldout-warning soldout-hard event-stock-warning">Sold out</div>
+                                                </c:when>
+                                                <c:when test="${event.nearlySoldOut}">
+                                                    <div class="soldout-warning event-stock-warning">Almost sold out. Buy soon.</div>
+                                                </c:when>
+                                                <c:otherwise>
+                                                    <div class="soldout-warning event-stock-warning hidden"></div>
+                                                </c:otherwise>
+                                            </c:choose>
                                         </div>
                                         <div class="event-hint">Use Preview to see full event details, ticket quantity, and add-to-cart controls.</div>
                                     </div>
@@ -1044,7 +1071,7 @@
                     <c:choose>
                         <c:when test="${not empty wishlistEvents}">
                             <c:forEach var="event" items="${wishlistEvents}">
-                                <article class="event-card searchable-card" data-event-id="${event.id}" data-search="${event.name} ${event.type} ${event.venueName} ${event.address} ${event.date}" data-name="${event.name}" data-type="${event.type}" data-price="${event.price}" data-date="${event.date}" data-venue="${event.venueName}" data-address="${event.address}" data-total-tickets="${event.totalTickets}" data-sold-tickets="${event.soldTickets}" data-sold-percentage="${event.soldPercentage}" data-wishlisted="true" data-purchased="${event.purchased}" data-album-url="EventAlbumImage.do?eventID=${event.id}">
+                                <article class="event-card searchable-card${event.soldOut ? ' sold-out' : ''}" data-event-id="${event.id}" data-search="${event.name} ${event.type} ${event.venueName} ${event.address} ${event.date}" data-name="${event.name}" data-type="${event.type}" data-price="${event.price}" data-date="${event.date}" data-venue="${event.venueName}" data-address="${event.address}" data-total-tickets="${event.totalTickets}" data-sold-tickets="${event.soldTickets}" data-available-tickets="${event.availableTickets}" data-sold-percentage="${event.soldPercentage}" data-wishlisted="true" data-purchased="${event.purchased}" data-album-url="EventAlbumImage.do?eventID=${event.id}">
                                     <div class="ticket-hero">
                                         <img class="ticket-album" src="EventAlbumImage.do?eventID=${event.id}" alt="${event.name} album" onerror="this.style.display='none';">
                                         <div class="ticket-hero-actions">
@@ -1062,11 +1089,20 @@
                                         <p>${event.date}</p>
                                         <div class="price"><c:choose><c:when test="${event.price > 0}">R ${event.price}</c:when><c:otherwise>FREE</c:otherwise></c:choose></div>
                                         <div class="sold-status">
-                                            <div class="sold-label">Tickets sold: ${event.soldPercentage}%</div>
-                                            <div class="sold-track"><div class="sold-fill" style="width:${event.soldPercentage}%;"></div></div>
-                                            <c:if test="${not event.purchased and event.nearlySoldOut}">
-                                                <div class="soldout-warning">This event is almost sold out. You added it to wishlist, buy soon.</div>
-                                            </c:if>
+                                            <div class="sold-label event-sold-label">Tickets sold: ${event.soldPercentage}%</div>
+                                            <div class="sold-track"><div class="sold-fill event-sold-fill" style="width:${event.soldPercentage}%;"></div></div>
+                                            <div class="event-available-label">Available: ${event.availableTickets} / ${event.totalTickets}</div>
+                                            <c:choose>
+                                                <c:when test="${event.soldOut}">
+                                                    <div class="soldout-warning soldout-hard event-stock-warning">Sold out</div>
+                                                </c:when>
+                                                <c:when test="${event.nearlySoldOut}">
+                                                    <div class="soldout-warning event-stock-warning">Almost sold out. Buy soon.</div>
+                                                </c:when>
+                                                <c:otherwise>
+                                                    <div class="soldout-warning event-stock-warning hidden"></div>
+                                                </c:otherwise>
+                                            </c:choose>
                                         </div>
                                         <div class="event-hint">Use Preview to see full event details, ticket quantity, and add-to-cart controls.</div>
                                     </div>
@@ -1108,7 +1144,7 @@
                 </section>
                 <section class="preview-section">
                     <h4>Ticket Actions</h4>
-                    <p style="margin:0 0 10px;color:#4f6250;">Pick number of tickets and add to cart without leaving this page.</p>
+                    <p id="previewStockNotice" style="margin:0 0 10px;color:#4f6250;">Pick number of tickets and add to cart without leaving this page.</p>
                     <div class="preview-actions">
                         <form action="BookTicket.do" method="POST" class="cart-form" id="previewCartForm">
                             <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
@@ -1119,7 +1155,7 @@
                                 <input type="number" name="quantity" min="1" value="1" class="qty-input" aria-label="Ticket quantity" readonly>
                                 <button type="button" class="qty-plus" onclick="stepQty(this,1)" aria-label="Increase ticket quantity">+</button>
                             </div>
-                            <button type="submit" class="btn btn-primary">Add to Cart</button>
+                            <button type="submit" class="btn btn-primary" id="previewAddButton">Add to Cart</button>
                         </form>
                         <form action="Wishlist.do" method="POST" class="wish-form" id="previewWishForm">
                             <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
@@ -1288,6 +1324,106 @@
             if (isNaN(amount) || amount <= 0) { return 'FREE'; }
             return 'R ' + amount.toFixed(2);
         }
+        function formatStockWarning(available, soldPercentage) {
+            if (available <= 0) {
+                return { text: 'Sold out', hard: true, show: true };
+            }
+            if (soldPercentage >= 80) {
+                return { text: 'Almost sold out. Buy soon.', hard: false, show: true };
+            }
+            return { text: '', hard: false, show: false };
+        }
+        function applyCardStockState(card, totalTickets, soldTickets) {
+            if (!card) { return; }
+            totalTickets = Math.max(0, toInt(totalTickets));
+            soldTickets = Math.max(0, Math.min(totalTickets, toInt(soldTickets)));
+            var available = Math.max(0, totalTickets - soldTickets);
+            var soldPercentage = totalTickets > 0 ? Math.round((soldTickets * 100) / totalTickets) : 0;
+
+            card.setAttribute('data-total-tickets', String(totalTickets));
+            card.setAttribute('data-sold-tickets', String(soldTickets));
+            card.setAttribute('data-available-tickets', String(available));
+            card.setAttribute('data-sold-percentage', String(soldPercentage));
+
+            var soldLabel = card.querySelector('.event-sold-label');
+            if (soldLabel) {
+                soldLabel.textContent = 'Tickets sold: ' + soldPercentage + '%';
+            }
+            var soldFill = card.querySelector('.event-sold-fill');
+            if (soldFill) {
+                soldFill.style.width = soldPercentage + '%';
+            }
+            var availableLabel = card.querySelector('.event-available-label');
+            if (availableLabel) {
+                availableLabel.textContent = 'Available: ' + available + ' / ' + totalTickets;
+            }
+
+            var warningMeta = formatStockWarning(available, soldPercentage);
+            var warning = card.querySelector('.event-stock-warning');
+            if (warning) {
+                warning.textContent = warningMeta.text;
+                warning.classList.toggle('hidden', !warningMeta.show);
+                warning.classList.toggle('soldout-hard', warningMeta.hard);
+            }
+            card.classList.toggle('sold-out', available <= 0);
+        }
+        function applyPreviewStockState(totalTickets, soldTickets) {
+            totalTickets = Math.max(0, toInt(totalTickets));
+            soldTickets = Math.max(0, Math.min(totalTickets, toInt(soldTickets)));
+            var available = Math.max(0, totalTickets - soldTickets);
+            var soldPercentage = totalTickets > 0 ? Math.round((soldTickets * 100) / totalTickets) : 0;
+
+            document.getElementById('previewEventAvailable').textContent = available + ' (out of ' + totalTickets + ')';
+            document.getElementById('previewEventSoldLabel').textContent = 'Tickets sold: ' + soldPercentage + '%';
+            document.getElementById('previewEventSoldFill').style.width = soldPercentage + '%';
+
+            var addBtn = document.getElementById('previewAddButton');
+            var qtyInput = document.querySelector('#previewCartForm input[name="quantity"]');
+            var minusBtn = document.querySelector('#previewCartForm .qty-minus');
+            var plusBtn = document.querySelector('#previewCartForm .qty-plus');
+            var notice = document.getElementById('previewStockNotice');
+            var soldOut = available <= 0;
+
+            if (addBtn) {
+                addBtn.disabled = soldOut;
+                addBtn.textContent = soldOut ? 'Sold Out' : 'Add to Cart';
+            }
+            if (qtyInput) { qtyInput.disabled = soldOut; }
+            if (minusBtn) { minusBtn.disabled = soldOut; }
+            if (plusBtn) { plusBtn.disabled = soldOut; }
+            if (notice) {
+                notice.textContent = soldOut
+                    ? 'This event is sold out right now. Live stock updates will unlock it when tickets become available.'
+                    : 'Pick number of tickets and add to cart without leaving this page.';
+            }
+        }
+        async function pollLiveStock() {
+            try {
+                var response = await fetch('AttendeeDashboardServlet.do?ajax=stock', {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                    credentials: 'same-origin'
+                });
+                if (!response.ok) { return; }
+                var data = await response.json();
+                if (!data || data.ok !== true || !Array.isArray(data.events)) { return; }
+
+                data.events.forEach(function (item) {
+                    var eventId = String(item.id || '');
+                    if (!eventId) { return; }
+                    document.querySelectorAll('.event-card[data-event-id="' + eventId + '"]').forEach(function (card) {
+                        applyCardStockState(card, item.totalTickets, item.soldTickets);
+                    });
+
+                    var modal = document.getElementById('eventPreviewModal');
+                    if (modal && !modal.classList.contains('hidden')
+                            && String(modal.getAttribute('data-event-id') || '') === eventId) {
+                        applyPreviewStockState(item.totalTickets, item.soldTickets);
+                    }
+                });
+            } catch (e) {
+                // Keep UI responsive even if periodic stock refresh fails.
+            }
+        }
         function toInt(value) {
             var num = parseInt(value, 10);
             return isNaN(num) ? 0 : num;
@@ -1306,7 +1442,6 @@
             var totalTickets = toInt(card.getAttribute('data-total-tickets'));
             var soldTickets = toInt(card.getAttribute('data-sold-tickets'));
             var soldPercentage = Math.max(0, Math.min(100, toInt(card.getAttribute('data-sold-percentage'))));
-            var available = Math.max(0, totalTickets - soldTickets);
             var wishlisted = String(card.getAttribute('data-wishlisted')).toLowerCase() === 'true';
             var albumUrl = card.getAttribute('data-album-url') || ('EventAlbumImage.do?eventID=' + eventId);
 
@@ -1317,9 +1452,7 @@
             document.getElementById('previewEventVenueName').textContent = venue;
             document.getElementById('previewEventAddress').textContent = address;
             document.getElementById('previewEventPrice').textContent = formatPreviewPrice(price);
-            document.getElementById('previewEventAvailable').textContent = available + ' (out of ' + totalTickets + ')';
-            document.getElementById('previewEventSoldLabel').textContent = 'Tickets sold: ' + soldPercentage + '%';
-            document.getElementById('previewEventSoldFill').style.width = soldPercentage + '%';
+            applyPreviewStockState(totalTickets, soldTickets);
 
             var image = document.getElementById('previewEventImage');
             image.style.display = 'block';
@@ -1344,6 +1477,7 @@
             if (qtyInput) { qtyInput.value = '1'; }
 
             var modal = document.getElementById('eventPreviewModal');
+            modal.setAttribute('data-event-id', eventId);
             modal.classList.remove('hidden');
             modal.setAttribute('aria-hidden', 'false');
             document.body.style.overflow = 'hidden';
@@ -1353,6 +1487,7 @@
             if (!modal) { return; }
             modal.classList.add('hidden');
             modal.setAttribute('aria-hidden', 'true');
+            modal.removeAttribute('data-event-id');
             document.body.style.overflow = '';
         }
         function backdropClosePreview(event) {
@@ -1385,6 +1520,7 @@
                     if (data && data.ok) {
                         updateCartChip(data.cartCount, data.checkoutTotal);
                         showFloatingFlash(data.message || 'Added to cart', true);
+                        pollLiveStock();
                     } else {
                         showFloatingFlash((data && data.message) || 'Could not add to cart', false);
                     }
@@ -1568,10 +1704,17 @@
             initAdSlider();
             initAjaxActions();
             ensureWishlistEmptyState();
+            document.querySelectorAll('.event-card').forEach(function (card) {
+                applyCardStockState(card,
+                        card.getAttribute('data-total-tickets'),
+                        card.getAttribute('data-sold-tickets'));
+            });
             var consent = getCookie("tk_cookie_consent");
             if (!consent) { document.getElementById("cookieBanner").style.display = "block"; }
             if (consent === "yes") { persistUserContext(); var savedView = getCookie("tk_dashboard_view"); if (savedView === "wishlist") { switchView("wishlist"); } }
             applyEventTools();
+            pollLiveStock();
+            setInterval(pollLiveStock, 12000);
         }
         document.addEventListener('keydown', function (event) {
             if (event.key === 'Escape') {

@@ -2,7 +2,9 @@ package za.ac.tut.databaseManagement;
 
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import za.ac.tut.databaseConnection.DatabaseConnection;
 import za.ac.tut.entities.TertiaryPresenter;
 import za.ac.tut.entities.Event;
@@ -116,6 +118,129 @@ public class TertiaryPresenterDAO {
             }
         }
         return null; // Returns null if no event is booked
+    }
+
+    public Map<String, Object> getDashboardProfile(int presenterID) throws SQLException {
+        String sql = "SELECT p.tertiaryPresenterID, p.username, p.firstname, p.lastname, p.email, "
+                + "p.tertiaryInstitution, p.phoneNumber, p.biography, "
+                + "e.eventID, e.name AS eventName, e.type AS eventType, e.date AS eventDate, "
+                + "v.venueID, v.name AS venueName, v.address AS venueAddress "
+                + "FROM tertiary_presenter p "
+                + "LEFT JOIN event e ON e.eventID = p.eventID "
+                + "LEFT JOIN venue v ON v.venueID = p.venueID "
+                + "WHERE p.tertiaryPresenterID = ?";
+
+        List<Map<String, Object>> rows = runListQuery(sql, presenterID);
+        return rows.isEmpty() ? new HashMap<String, Object>() : rows.get(0);
+    }
+
+    public Map<String, Object> getEventSnapshot(int presenterID) throws SQLException {
+        String sql = "SELECT "
+            + "COALESCE(stock.totalTickets, 0) AS totalTickets, "
+            + "COALESCE(stock.soldTickets, 0) AS soldTickets, "
+            + "COALESCE(stock.revenue, 0) AS revenue, "
+            + "COALESCE(wish.wishlistCount, 0) AS wishlistCount "
+            + "FROM tertiary_presenter p "
+            + "LEFT JOIN ("
+            + "    SELECT eht.eventID, "
+            + "           COUNT(DISTINCT eht.ticketID) AS totalTickets, "
+            + "           COUNT(DISTINCT aht.ticketID) AS soldTickets, "
+            + "           COALESCE(SUM(t.price), 0) AS revenue "
+            + "    FROM event_has_ticket eht "
+            + "    LEFT JOIN attendee_has_ticket aht ON aht.ticketID = eht.ticketID "
+            + "    LEFT JOIN ticket t ON t.ticketID = aht.ticketID "
+            + "    GROUP BY eht.eventID"
+            + ") stock ON stock.eventID = p.eventID "
+            + "LEFT JOIN ("
+            + "    SELECT aw.eventID, COUNT(*) AS wishlistCount "
+            + "    FROM attendee_wishlist aw "
+            + "    GROUP BY aw.eventID"
+            + ") wish ON wish.eventID = p.eventID "
+            + "WHERE p.tertiaryPresenterID = ?";
+
+        List<Map<String, Object>> rows = runListQuery(sql, presenterID);
+        Map<String, Object> out = rows.isEmpty() ? new HashMap<String, Object>() : rows.get(0);
+
+        int total = toInt(out.get("totalTickets"));
+        int sold = Math.min(total, toInt(out.get("soldTickets")));
+        int available = Math.max(0, total - sold);
+        int soldPercentage = total > 0 ? (int) Math.round((sold * 100.0) / total) : 0;
+
+        out.put("totalTickets", total);
+        out.put("soldTickets", sold);
+        out.put("availableTickets", available);
+        out.put("soldPercentage", soldPercentage);
+        out.put("soldOut", total > 0 && soldPercentage >= 100);
+        out.put("nearlySoldOut", total > 0 && soldPercentage >= 80 && soldPercentage < 100);
+        return out;
+    }
+
+    public List<Map<String, Object>> getPresenterTeamContacts(int presenterID) throws SQLException {
+        String sql = "SELECT DISTINCT m.eventManagerID, m.firstname, m.lastname, m.email, "
+                + "e.name AS eventName "
+                + "FROM tertiary_presenter p "
+                + "LEFT JOIN event e ON e.eventID = p.eventID "
+                + "LEFT JOIN event_has_manager ehm ON ehm.eventID = e.eventID "
+                + "LEFT JOIN event_manager m ON m.eventManagerID = ehm.eventManagerID "
+                + "WHERE p.tertiaryPresenterID = ? "
+                + "ORDER BY m.firstname, m.lastname";
+        return runListQuery(sql, presenterID);
+    }
+
+    public List<Map<String, Object>> getVenueGuardContacts(int presenterID) throws SQLException {
+        String sql = "SELECT g.venueGuardID, g.firstname, g.lastname, g.email "
+                + "FROM tertiary_presenter p "
+                + "JOIN venue_guard g ON g.venueID = p.venueID "
+                + "WHERE p.tertiaryPresenterID = ? "
+                + "ORDER BY g.firstname, g.lastname";
+        return runListQuery(sql, presenterID);
+    }
+
+    public List<Map<String, Object>> getPeerPresentersAtVenue(int presenterID) throws SQLException {
+        String sql = "SELECT p2.tertiaryPresenterID, p2.firstname, p2.lastname, p2.email, "
+                + "p2.tertiaryInstitution, e.name AS eventName "
+                + "FROM tertiary_presenter p "
+                + "JOIN tertiary_presenter p2 ON p2.venueID = p.venueID "
+                + "LEFT JOIN event e ON e.eventID = p2.eventID "
+                + "WHERE p.tertiaryPresenterID = ? "
+                + "AND p2.tertiaryPresenterID <> p.tertiaryPresenterID "
+                + "ORDER BY p2.firstname, p2.lastname";
+        return runListQuery(sql, presenterID);
+    }
+
+    private List<Map<String, Object>> runListQuery(String sql, int presenterID) throws SQLException {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, presenterID);
+            try (ResultSet rs = ps.executeQuery()) {
+                ResultSetMetaData meta = rs.getMetaData();
+                int cols = meta.getColumnCount();
+                while (rs.next()) {
+                    Map<String, Object> row = new HashMap<>();
+                    for (int i = 1; i <= cols; i++) {
+                        String label = meta.getColumnLabel(i);
+                        if (label == null || label.trim().isEmpty()) {
+                            label = meta.getColumnName(i);
+                        }
+                        row.put(label, rs.getObject(i));
+                    }
+                    rows.add(row);
+                }
+            }
+        }
+        return rows;
+    }
+
+    private int toInt(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        try {
+            return Integer.parseInt(String.valueOf(value));
+        } catch (Exception ignored) {
+            return 0;
+        }
     }
 
 }

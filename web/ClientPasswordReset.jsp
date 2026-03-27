@@ -21,6 +21,8 @@
             .status, .error { border-radius:10px; padding:10px; margin-bottom:12px; font-weight:700; }
             .status { background:var(--ok-bg); color:var(--ok); border:1px solid #cce0c5; }
             .error { background:var(--err-bg); color:var(--err); border:1px solid #efc4c4; }
+            .fallback { margin-bottom:12px; padding:10px; border-radius:10px; border:1px solid #cfe2c9; background:#f2faf0; }
+            .fallback a { color:#2f7f20; word-break:break-all; font-weight:700; }
             .panel { border:1px solid var(--line); border-radius:12px; padding:14px; margin-top:10px; background:#fbfef9; }
             .input-group { margin-bottom:12px; }
             label { display:block; font-weight:700; margin-bottom:6px; }
@@ -40,6 +42,12 @@
 
                 <c:if test="${not empty error}"><div class="error">${error}</div></c:if>
                 <c:if test="${not empty status}"><div class="status">${status}</div></c:if>
+                <c:if test="${not empty fallbackResetLink}">
+                    <div class="fallback">
+                        <div><strong>${fallbackHint}</strong></div>
+                        <a href="${fallbackResetLink}">${fallbackResetLink}</a>
+                    </div>
+                </c:if>
 
                 <div class="panel">
                     <h2>1. Send Reset Email</h2>

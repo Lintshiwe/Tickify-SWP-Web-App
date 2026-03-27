@@ -66,6 +66,8 @@
         <% String err = request.getParameter("err"); %>
         <% if ("PaymentFailed".equals(err)) { %>
             <div class="card" style="border-color:#f0c2c2; color:#9b1c1c; margin-bottom:10px;">Payment failed. Please try again.</div>
+        <% } else if ("SoldOut".equals(err)) { %>
+            <div class="card" style="border-color:#f0c2c2; color:#9b1c1c; margin-bottom:10px;">This event is sold out or stock changed while you were checking out. Refresh and try another event.</div>
         <% } else if ("AgeRestricted".equals(err)) { %>
             <div class="card" style="border-color:#f0c2c2; color:#9b1c1c; margin-bottom:10px;">Your account is under 18 and cannot purchase this event type.</div>
         <% } else if ("TermsRequired".equals(err)) { %>
@@ -82,7 +84,6 @@
                 <form id="demoPaymentForm" action="PaymentGateway.do" method="POST" onsubmit="return submitDemoPayment(event)">
                     <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                     <input type="hidden" name="paymentAction" value="pay">
-                    <input type="hidden" name="popupWindowName" id="popupWindowName" value="">
                     <div class="field"><label>Card Holder</label><input type="text" name="holder" value="${userFullName}" required></div>
                     <div class="field"><label>Card Number</label><input type="text" name="number" placeholder="4111 1111 1111 1111" required></div>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
@@ -142,20 +143,17 @@
             var form = document.getElementById('demoPaymentForm');
             var overlay = document.getElementById('processingOverlay');
             var payBtn = document.getElementById('payBtn');
-            var popupNameField = document.getElementById('popupWindowName');
 
-            // Open a placeholder popup inside the direct user action to avoid browser popup blockers.
-            var popupName = 'tickifyTickets_' + Date.now();
-            var popup = window.open('', popupName, 'width=1040,height=820,resizable=yes,scrollbars=yes');
-            if (popupNameField) {
-                popupNameField.value = popup ? popupName : '';
+            // Preserve browser required-field validation before delayed submit.
+            if (!form.reportValidity()) {
+                return false;
             }
 
             payBtn.disabled = true;
             overlay.style.display = 'flex';
 
             setTimeout(function () {
-                form.submit();
+                HTMLFormElement.prototype.submit.call(form);
             }, 1600);
             return false;
         }

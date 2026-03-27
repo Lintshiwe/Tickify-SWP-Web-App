@@ -24,6 +24,7 @@
         .profile-meta { max-width:0; opacity:0; overflow:hidden; white-space:nowrap; transition:max-width .28s ease, opacity .22s ease; }
         .profile-wrap:hover .profile-meta, .profile-wrap:focus-within .profile-meta { max-width:260px; opacity:1; }
         .profile-icon { width:28px; height:28px; border-radius:50%; background:#e6eedf; display:flex; align-items:center; justify-content:center; color:#4c5b4b; font-weight:800; }
+        .profile-badge { border:1px solid #d6e8c8; background:#eff9e8; color:#2f5a22; border-radius:999px; font-size:.72rem; padding:3px 8px; font-weight:900; letter-spacing:.04em; }
         .profile-menu { position:absolute; right:0; top:calc(100% + 10px); min-width:220px; background:#fff; border:1px solid #dee5da; border-radius:12px; box-shadow:0 14px 26px rgba(24,32,20,.12); padding:8px; display:none; }
         .profile-menu.open { display:block; }
         .profile-menu a { display:block; text-decoration:none; color:#2c342d; border-radius:8px; padding:10px; font-weight:700; }
@@ -84,7 +85,10 @@
                 <div class="profile-wrap">
                     <button class="profile-btn" id="profileBtn" type="button" onclick="toggleProfileMenu()">
                         <span class="profile-icon">A</span>
-                        <span class="profile-meta">${userFullName} | ${sessionScope.userRoleNumberLabel} | ${sessionScope.userCampusName}</span>
+                        <span class="profile-meta">${sessionScope.userFullName} | ${sessionScope.userRoleNumberLabel} | ${adminCampusDisplayName}</span>
+                        <c:if test="${isPrivilegedAdmin}">
+                            <span class="profile-badge">MAIN ADMIN</span>
+                        </c:if>
                     </button>
                     <div class="profile-menu" id="profileMenu">
                         <a href="${pageContext.request.contextPath}/AdminDashboard.do">Dashboard</a>
@@ -133,6 +137,7 @@
                     <c:when test="${param.msg == 'RowDeleted'}">Database row deleted successfully.</c:when>
                     <c:when test="${param.msg == 'RootPasswordRotated'}">Root password rotated successfully.</c:when>
                     <c:when test="${param.msg == 'ScanLogsPurged'}">Scan logs purged successfully.</c:when>
+                    <c:when test="${param.msg == 'ProfileUpdated'}">Your admin profile was updated successfully.</c:when>
                     <c:when test="${param.msg == 'NoChange'}">No changes were applied.</c:when>
                     <c:otherwise>Operation completed successfully.</c:otherwise>
                 </c:choose>
@@ -148,6 +153,7 @@
                     <c:when test="${param.err == 'InvalidAssignment'}">Assignment values must reference existing events, venues, guards, and institutions.</c:when>
                     <c:when test="${param.err == 'EventHasSales'}">Event cannot be deleted because tickets were already sold.</c:when>
                     <c:when test="${param.err == 'MissingFields'}">Please complete all required fields.</c:when>
+                    <c:when test="${param.err == 'EmailInUse'}">That email address is already used by another admin account.</c:when>
                     <c:when test="${param.err == 'UnknownAction'}">Unknown action requested.</c:when>
                     <c:when test="${param.err == 'OperationFailed'}">Operation failed. Please try again.</c:when>
                     <c:otherwise>An error occurred. Please verify your input and try again.</c:otherwise>
@@ -206,6 +212,18 @@
                 </form>
             </article>
             <article class="card">
+                <h3>My Admin Profile</h3>
+                <p style="margin:0 0 8px;color:#5f6f63;">Update your admin identity details. Leave password blank to keep your current password.</p>
+                <form action="${pageContext.request.contextPath}/AdminDashboard.do" method="POST" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:end;">
+                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                    <input type="hidden" name="action" value="updateMyProfile">
+                    <div class="field"><label>First Name</label><input type="text" name="firstName" value="${myAdminProfile.firstname}" required></div>
+                    <div class="field"><label>Last Name</label><input type="text" name="lastName" value="${myAdminProfile.lastname}" required></div>
+                    <div class="field"><label>Email</label><input type="email" name="email" value="${myAdminProfile.email}" required></div>
+                    <div class="field"><label>New Password (Optional)</label><input type="password" name="newPassword" minlength="6" placeholder="Leave blank to keep current"></div>
+                    <div class="field"><button class="btn" type="submit">Save Profile</button></div>
+                </form>
+
                 <h3>Database Summary</h3>
                 <div class="summary-grid">
                     <c:forEach var="row" items="${tableSummary}">

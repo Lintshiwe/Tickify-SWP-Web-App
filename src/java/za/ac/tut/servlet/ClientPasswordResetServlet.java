@@ -50,6 +50,7 @@ public class ClientPasswordResetServlet extends HttpServlet {
         String rawRole = trimToNull(request.getParameter("userRole"));
         String role = normalizeClientRole(rawRole);
         String identifier = trimToNull(request.getParameter("identifier"));
+        String resetLink = null;
 
         if (!userDAO.isClientRole(role) || identifier == null) {
             request.setAttribute("error", "Choose a client role and enter your username or email.");
@@ -69,7 +70,7 @@ public class ClientPasswordResetServlet extends HttpServlet {
             String token = PasswordResetTokenUtil.generate(account.getRole(), account.getUserId(), expiresAt, account.getPasswordHash());
             String encoded = URLEncoder.encode(token, StandardCharsets.UTF_8.name());
             String appBase = resolveAppBaseUrl(request);
-            String resetLink = appBase + request.getContextPath() + "/ClientPasswordReset.do?token=" + encoded;
+            resetLink = appBase + request.getContextPath() + "/ClientPasswordReset.do?token=" + encoded;
 
             emailService.sendPasswordResetEmail(account.getEmail(), resetLink);
             request.setAttribute("status", "A password reset email has been sent to your account if it exists.");
@@ -80,9 +81,60 @@ public class ClientPasswordResetServlet extends HttpServlet {
             request.getRequestDispatcher("/ClientPasswordReset.jsp").forward(request, response);
         } catch (Exception ex) {
             log("Failed to send password reset email", ex);
-            request.setAttribute("error", "Unable to send reset email right now. Please try again later.");
+            request.setAttribute("error", resolveEmailSendError(ex));
+            applyResetLinkFallback(request, resetLink);
+            request.getRequestDispatcher("/ClientPasswordReset.jsp").forward(request, response);
+        } catch (Throwable ex) {
+            // Guard against runtime linkage/classloading issues in the mail stack.
+            log("Failed to send password reset email", ex);
+            request.setAttribute("error", resolveEmailSendError(ex));
+            applyResetLinkFallback(request, resetLink);
             request.getRequestDispatcher("/ClientPasswordReset.jsp").forward(request, response);
         }
+    }
+
+    private String resolveEmailSendError(Throwable ex) {
+        String message = ex == null ? null : ex.getMessage();
+        if (message != null) {
+            String normalized = message.toLowerCase();
+            if (normalized.contains("smtpauthenticationerror")
+                    || normalized.contains("5.7.8")
+                    || normalized.contains("username and password not accepted")) {
+                return "SMTP authentication failed. Configure a Gmail App Password and try again.";
+            }
+        }
+        return "Unable to send reset email right now. Please try again later.";
+    }
+
+    private void applyResetLinkFallback(HttpServletRequest request, String resetLink) {
+        if (resetLink == null) {
+            return;
+        }
+        if (isLocalRequest(request) || isFallbackExplicitlyEnabled()) {
+            request.setAttribute("fallbackResetLink", resetLink);
+            request.setAttribute("fallbackHint", "Temporary local fallback: use this reset link directly.");
+        }
+    }
+
+    private boolean isLocalRequest(HttpServletRequest request) {
+        String host = request.getServerName();
+        if (host == null) {
+            return false;
+        }
+        String normalized = host.trim().toLowerCase();
+        return "localhost".equals(normalized) || "127.0.0.1".equals(normalized);
+    }
+
+    private boolean isFallbackExplicitlyEnabled() {
+        String env = System.getenv("TICKIFY_RESET_FALLBACK_LINK");
+        if (env != null && !env.trim().isEmpty()) {
+            return Boolean.parseBoolean(env.trim());
+        }
+        String prop = System.getProperty("tickify.reset.fallbackLink");
+        if (prop != null && !prop.trim().isEmpty()) {
+            return Boolean.parseBoolean(prop.trim());
+        }
+        return false;
     }
 
     private void handlePasswordReset(HttpServletRequest request, HttpServletResponse response)

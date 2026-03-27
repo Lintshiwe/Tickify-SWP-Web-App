@@ -411,6 +411,71 @@ public class AdminITDAO {
         }
     }
 
+    public Map<String, Object> getAdminProfile(int adminId) throws SQLException {
+        if (adminId <= 0) {
+            return new HashMap<>();
+        }
+        List<Map<String, Object>> rows = runListQuery(
+                "SELECT adminID, firstname, lastname, email FROM admin WHERE adminID = ?",
+                Arrays.<Object>asList(adminId));
+        if (rows.isEmpty()) {
+            return new HashMap<>();
+        }
+        return rows.get(0);
+    }
+
+    public boolean updateOwnAdminProfile(int adminId, String firstName, String lastName, String email, String newPassword) throws SQLException {
+        if (adminId <= 0) {
+            return false;
+        }
+        String safeFirstName = firstName == null ? "" : firstName.trim();
+        String safeLastName = lastName == null ? "" : lastName.trim();
+        String safeEmail = email == null ? "" : email.trim().toLowerCase();
+        String safeNewPassword = newPassword == null ? "" : newPassword.trim();
+
+        if (safeFirstName.isEmpty() || safeLastName.isEmpty() || safeEmail.isEmpty()) {
+            throw new SQLException("MissingFields");
+        }
+
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            try (PreparedStatement exists = conn.prepareStatement(
+                    "SELECT 1 FROM admin WHERE LOWER(email) = LOWER(?) AND adminID <> ?")) {
+                exists.setString(1, safeEmail);
+                exists.setInt(2, adminId);
+                try (ResultSet rs = exists.executeQuery()) {
+                    if (rs.next()) {
+                        throw new SQLException("EmailInUse");
+                    }
+                }
+            }
+
+            String sql;
+            if (safeNewPassword.isEmpty()) {
+                sql = "UPDATE admin SET firstname = ?, lastname = ?, email = ? WHERE adminID = ?";
+            } else {
+                sql = "UPDATE admin SET firstname = ?, lastname = ?, email = ?, password = ? WHERE adminID = ?";
+            }
+
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                int idx = 1;
+                ps.setString(idx++, safeFirstName);
+                ps.setString(idx++, safeLastName);
+                ps.setString(idx++, safeEmail);
+                if (!safeNewPassword.isEmpty()) {
+                    ps.setString(idx++, PasswordUtil.hashPassword(safeNewPassword));
+                }
+                ps.setInt(idx, adminId);
+                int affected = ps.executeUpdate();
+                if (affected > 0) {
+                    logAudit(conn, adminId, "UPDATE_SELF_PROFILE", "admin", String.valueOf(adminId),
+                            safeNewPassword.isEmpty() ? "Updated own admin profile" : "Updated own admin profile and password");
+                    return true;
+                }
+                return false;
+            }
+        }
+    }
+
     public List<Map<String, Object>> getIdentityDirectory() throws SQLException {
         List<Map<String, Object>> rows = new ArrayList<>();
         rows.addAll(withRole(getAdmins(), "ADMIN", "adminID"));
@@ -1159,30 +1224,36 @@ public class AdminITDAO {
         }
 
         StringBuilder sql = new StringBuilder(
-                "SELECT v.venueID, v.name AS campusName, "
-                + "COUNT(DISTINCT aht.ticketID) AS soldTickets, "
-                + "COALESCE(SUM(t.price), 0) AS recordedRevenue, "
-                + "COALESCE((SELECT COUNT(DISTINCT s.ticketID) FROM scan_log s "
-                + "JOIN event_has_ticket eht2 ON eht2.ticketID = s.ticketID "
-                + "JOIN event e2 ON e2.eventID = eht2.eventID "
-                + "WHERE s.result = 'VALID' AND e2.venueID = v.venueID), 0) AS validatedTickets, "
-                + "COALESCE((SELECT SUM(t2.price) FROM scan_log s2 "
-                + "JOIN ticket t2 ON t2.ticketID = s2.ticketID "
-                + "JOIN event_has_ticket eht3 ON eht3.ticketID = s2.ticketID "
-                + "JOIN event e3 ON e3.eventID = eht3.eventID "
-                + "WHERE s2.result = 'VALID' AND e3.venueID = v.venueID), 0) AS validatedRevenue "
-                + "FROM venue v "
-                + "LEFT JOIN event e ON e.venueID = v.venueID "
-                + "LEFT JOIN event_has_ticket eht ON eht.eventID = e.eventID "
-                + "LEFT JOIN attendee_has_ticket aht ON aht.ticketID = eht.ticketID "
-                + "LEFT JOIN ticket t ON t.ticketID = aht.ticketID "
-                + "WHERE 1=1");
+            "SELECT v.venueID, v.name AS campusName, "
+            + "COALESCE(soldAgg.soldTickets, 0) AS soldTickets, "
+            + "COALESCE(soldAgg.recordedRevenue, 0) AS recordedRevenue, "
+            + "COALESCE(validAgg.validatedTickets, 0) AS validatedTickets, "
+            + "COALESCE(validAgg.validatedRevenue, 0) AS validatedRevenue "
+            + "FROM venue v "
+            + "LEFT JOIN ("
+            + "  SELECT e.venueID, COUNT(DISTINCT aht.ticketID) AS soldTickets, COALESCE(SUM(t.price), 0) AS recordedRevenue "
+            + "  FROM event e "
+            + "  LEFT JOIN event_has_ticket eht ON eht.eventID = e.eventID "
+            + "  LEFT JOIN attendee_has_ticket aht ON aht.ticketID = eht.ticketID "
+            + "  LEFT JOIN ticket t ON t.ticketID = aht.ticketID "
+            + "  GROUP BY e.venueID"
+            + ") soldAgg ON soldAgg.venueID = v.venueID "
+            + "LEFT JOIN ("
+            + "  SELECT e3.venueID, COUNT(DISTINCT s.ticketID) AS validatedTickets, COALESCE(SUM(t2.price), 0) AS validatedRevenue "
+            + "  FROM scan_log s "
+            + "  JOIN event_has_ticket eht3 ON eht3.ticketID = s.ticketID "
+            + "  JOIN event e3 ON e3.eventID = eht3.eventID "
+            + "  LEFT JOIN ticket t2 ON t2.ticketID = s.ticketID "
+            + "  WHERE s.result = 'VALID' "
+            + "  GROUP BY e3.venueID"
+            + ") validAgg ON validAgg.venueID = v.venueID "
+            + "WHERE 1=1");
         List<Object> params = new ArrayList<>();
         if (!privileged) {
             sql.append(" AND v.venueID = ?");
             params.add(campusVenueId);
         }
-        sql.append(" GROUP BY v.venueID, v.name ORDER BY v.name ASC");
+        sql.append(" ORDER BY v.name ASC");
 
         List<Map<String, Object>> rows = runListQuery(sql.toString(), params);
         for (Map<String, Object> row : rows) {
@@ -1228,30 +1299,36 @@ public class AdminITDAO {
         }
 
         StringBuilder sql = new StringBuilder(
-                "SELECT v.venueID, v.name AS campusName, "
-                + "COUNT(DISTINCT aht.ticketID) AS soldTickets, "
-                + "COALESCE(SUM(t.price), 0) AS recordedRevenue, "
-                + "COALESCE((SELECT COUNT(DISTINCT s.ticketID) FROM scan_log s "
-                + "JOIN event_has_ticket eht2 ON eht2.ticketID = s.ticketID "
-                + "JOIN event e2 ON e2.eventID = eht2.eventID "
-                + "WHERE s.result = 'VALID' AND e2.venueID = v.venueID), 0) AS validatedTickets, "
-                + "COALESCE((SELECT SUM(t2.price) FROM scan_log s2 "
-                + "JOIN ticket t2 ON t2.ticketID = s2.ticketID "
-                + "JOIN event_has_ticket eht3 ON eht3.ticketID = s2.ticketID "
-                + "JOIN event e3 ON e3.eventID = eht3.eventID "
-                + "WHERE s2.result = 'VALID' AND e3.venueID = v.venueID), 0) AS validatedRevenue "
-                + "FROM venue v "
-                + "LEFT JOIN event e ON e.venueID = v.venueID "
-                + "LEFT JOIN event_has_ticket eht ON eht.eventID = e.eventID "
-                + "LEFT JOIN attendee_has_ticket aht ON aht.ticketID = eht.ticketID "
-                + "LEFT JOIN ticket t ON t.ticketID = aht.ticketID "
-                + "WHERE 1=1");
+            "SELECT v.venueID, v.name AS campusName, "
+            + "COALESCE(soldAgg.soldTickets, 0) AS soldTickets, "
+            + "COALESCE(soldAgg.recordedRevenue, 0) AS recordedRevenue, "
+            + "COALESCE(validAgg.validatedTickets, 0) AS validatedTickets, "
+            + "COALESCE(validAgg.validatedRevenue, 0) AS validatedRevenue "
+            + "FROM venue v "
+            + "LEFT JOIN ("
+            + "  SELECT e.venueID, COUNT(DISTINCT aht.ticketID) AS soldTickets, COALESCE(SUM(t.price), 0) AS recordedRevenue "
+            + "  FROM event e "
+            + "  LEFT JOIN event_has_ticket eht ON eht.eventID = e.eventID "
+            + "  LEFT JOIN attendee_has_ticket aht ON aht.ticketID = eht.ticketID "
+            + "  LEFT JOIN ticket t ON t.ticketID = aht.ticketID "
+            + "  GROUP BY e.venueID"
+            + ") soldAgg ON soldAgg.venueID = v.venueID "
+            + "LEFT JOIN ("
+            + "  SELECT e3.venueID, COUNT(DISTINCT s.ticketID) AS validatedTickets, COALESCE(SUM(t2.price), 0) AS validatedRevenue "
+            + "  FROM scan_log s "
+            + "  JOIN event_has_ticket eht3 ON eht3.ticketID = s.ticketID "
+            + "  JOIN event e3 ON e3.eventID = eht3.eventID "
+            + "  LEFT JOIN ticket t2 ON t2.ticketID = s.ticketID "
+            + "  WHERE s.result = 'VALID' "
+            + "  GROUP BY e3.venueID"
+            + ") validAgg ON validAgg.venueID = v.venueID "
+            + "WHERE 1=1");
         List<Object> params = new ArrayList<>();
         if (!privileged) {
             sql.append(" AND v.venueID = ?");
             params.add(campusVenueId);
         }
-        sql.append(" GROUP BY v.venueID, v.name ORDER BY v.name ASC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY");
+        sql.append(" ORDER BY v.name ASC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY");
         params.add(offset);
         params.add(safePageSize);
 

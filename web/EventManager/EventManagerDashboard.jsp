@@ -48,7 +48,7 @@
                 <div class="brand">TICKIFY EVENT MANAGER</div>
                 <div class="profile-meta">${userFullName} | ${sessionScope.userRoleNumberLabel} | ${sessionScope.userCampusName}</div>
             </div>
-            <a class="logout" href="../LogoutServlet.do">Logout</a>
+            <a class="logout" href="${pageContext.request.contextPath}/LogoutServlet.do">Logout</a>
         </div>
 
         <section class="kpis">

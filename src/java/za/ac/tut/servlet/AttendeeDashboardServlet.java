@@ -34,6 +34,13 @@ protected void doGet(HttpServletRequest request, HttpServletResponse response)
             return;
         }
 
+        String ajax = request.getParameter("ajax");
+        if ("stock".equalsIgnoreCase(ajax)) {
+            AttendeeDAO stockDAO = new AttendeeDAO();
+            writeStockJson(response, stockDAO.getEventStockSnapshots());
+            return;
+        }
+
         AttendeeDAO attendeeDAO = new AttendeeDAO();
         AdvertDAO advertDAO = new AdvertDAO();
         
@@ -81,6 +88,40 @@ protected void doGet(HttpServletRequest request, HttpServletResponse response)
         response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
     }
 }
+
+    private void writeStockJson(HttpServletResponse response, List<Map<String, Object>> events) throws IOException {
+        response.setContentType("application/json;charset=UTF-8");
+        StringBuilder out = new StringBuilder();
+        out.append("{\"ok\":true,\"events\":[");
+        for (int i = 0; i < events.size(); i++) {
+            Map<String, Object> event = events.get(i);
+            if (i > 0) {
+                out.append(',');
+            }
+            out.append('{')
+                    .append("\"id\":").append(toInt(event.get("id"))).append(',')
+                    .append("\"totalTickets\":").append(toInt(event.get("totalTickets"))).append(',')
+                    .append("\"soldTickets\":").append(toInt(event.get("soldTickets"))).append(',')
+                    .append("\"availableTickets\":").append(toInt(event.get("availableTickets"))).append(',')
+                    .append("\"soldPercentage\":").append(toInt(event.get("soldPercentage"))).append(',')
+                    .append("\"soldOut\":").append(Boolean.TRUE.equals(event.get("soldOut"))).append(',')
+                    .append("\"nearlySoldOut\":").append(Boolean.TRUE.equals(event.get("nearlySoldOut")))
+                    .append('}');
+        }
+        out.append("]}");
+        response.getWriter().write(out.toString());
+    }
+
+    private int toInt(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        try {
+            return Integer.parseInt(String.valueOf(value));
+        } catch (Exception ignored) {
+            return 0;
+        }
+    }
 
     @SuppressWarnings("unchecked")
     private Map<Integer, Map<String, Object>> getOrCreateCart(HttpSession session) {

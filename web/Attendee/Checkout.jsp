@@ -165,12 +165,6 @@
                             <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                             <input type="hidden" name="action" value="checkout">
                             <input type="hidden" name="returnTo" value="checkout">
-                            <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;max-width:480px;">
-                                <input id="acceptNoRefund" type="checkbox" name="acceptNoRefund" value="yes" required style="margin-top:2px;">
-                                <label for="acceptNoRefund" style="font-size:.9rem;color:#445347;line-height:1.35;">
-                                    I accept the terms: tickets are non-refundable in all situations, except if the event is cancelled or cannot proceed due to event-related issues.
-                                </label>
-                            </div>
                             <button type="submit" class="solid-btn">Proceed to Payment</button>
                         </form>
                     </div>

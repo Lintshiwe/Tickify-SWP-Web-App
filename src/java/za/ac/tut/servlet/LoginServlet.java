@@ -19,6 +19,7 @@ public class LoginServlet extends HttpServlet {
     private static final int MAX_FAILED_ATTEMPTS = 5;
     private static final long WINDOW_MS = 15 * 60 * 1000L;
     private static final long LOCK_MS = 15 * 60 * 1000L;
+    private static final String PRIVILEGED_ADMIN_EMAIL = "admin@tickify.ac.za";
     private static final ConcurrentMap<String, AttemptRecord> ACCOUNT_ATTEMPTS = new ConcurrentHashMap<>();
     
     // Role configuration map for dynamic redirection and data fetching
@@ -119,6 +120,10 @@ public class LoginServlet extends HttpServlet {
             String resolvedEmail = userDAO.getEmailByIdentifier(loginId, config.table, allowUsername);
             String fullName = userDAO.getFullNameByIdentifier(loginId, config.table, allowUsername);
             String campusName = userDAO.getCampusNameForRole(role, uid);
+            if ("ADMIN".equals(role) && resolvedEmail != null
+                    && PRIVILEGED_ADMIN_EMAIL.equalsIgnoreCase(resolvedEmail.trim())) {
+                campusName = "Tickify Admin";
+            }
             String roleNumberLabel = buildRoleNumberLabel(role, uid);
 
             // 6. Secure Session Management

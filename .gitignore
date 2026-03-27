@@ -19,3 +19,13 @@ database/
 *.log
 *.tmp
 *.swp
+
+# Secrets and local environment files
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+secrets/

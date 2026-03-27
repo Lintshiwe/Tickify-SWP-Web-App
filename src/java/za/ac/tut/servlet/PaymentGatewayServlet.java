@@ -2,8 +2,10 @@ package za.ac.tut.servlet;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -11,6 +13,8 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import za.ac.tut.databaseManagement.AttendeeDAO;
+import za.ac.tut.entities.Attendee;
+import za.ac.tut.notification.EmailService;
 import za.ac.tut.payment.PaymentProvider;
 import za.ac.tut.payment.PaymentProviderFactory;
 import za.ac.tut.payment.PaymentRequest;
@@ -21,7 +25,9 @@ public class PaymentGatewayServlet extends HttpServlet {
     private static final String CART_KEY = "attendeeCart";
     private static final String PENDING_CHECKOUT_KEY = "pendingCheckoutCart";
     private static final String AGE_RESTRICTED_ERR = "AgeRestricted";
+    private static final String SOLD_OUT_ERR = "SoldOut";
     private final AttendeeDAO attendeeDAO = new AttendeeDAO();
+    private final EmailService emailService = new EmailService();
     private final PaymentProvider paymentProvider = PaymentProviderFactory.resolveProvider();
 
     @Override
@@ -57,7 +63,6 @@ public class PaymentGatewayServlet extends HttpServlet {
         }
 
         String action = request.getParameter("paymentAction");
-        String popupWindowName = request.getParameter("popupWindowName");
         HttpSession session = request.getSession();
         Map<Integer, Map<String, Object>> pending = getOrCreatePendingCheckout(session);
         if (pending.isEmpty()) {
@@ -87,6 +92,17 @@ public class PaymentGatewayServlet extends HttpServlet {
             return;
         }
 
+        try {
+            if (!hasSufficientStock(pending)) {
+                response.sendRedirect(request.getContextPath() + "/PaymentGateway.do?err=" + SOLD_OUT_ERR);
+                return;
+            }
+        } catch (SQLException ex) {
+            log("Unable to validate stock before payment", ex);
+            response.sendRedirect(request.getContextPath() + "/PaymentGateway.do?err=OperationFailed");
+            return;
+        }
+
         double checkoutTotal = calculateCartTotal(pending.values());
         PaymentRequest paymentRequest = new PaymentRequest(
                 request.getParameter("holder"),
@@ -106,12 +122,16 @@ public class PaymentGatewayServlet extends HttpServlet {
         int requested = 0;
         int purchased = 0;
         try {
+            List<Map<String, Object>> purchasedTickets = new ArrayList<>();
             for (Map<String, Object> item : pending.values()) {
                 int eventId = ((Number) item.get("eventID")).intValue();
                 int quantity = ((Number) item.get("quantity")).intValue();
-                double price = ((Number) item.get("price")).doubleValue();
                 requested += quantity;
-                purchased += attendeeDAO.generateAndAssignUniqueTickets(attendeeId, eventId, quantity, price);
+                int createdForEvent = attendeeDAO.purchaseTicketsForEvent(attendeeId, eventId, quantity);
+                purchased += createdForEvent;
+                if (createdForEvent > 0) {
+                    purchasedTickets.addAll(attendeeDAO.getRecentAttendeeTicketsForEvent(attendeeId, eventId, createdForEvent));
+                }
             }
 
             if (purchased > 0) {
@@ -120,22 +140,23 @@ public class PaymentGatewayServlet extends HttpServlet {
                 } catch (SQLException historyEx) {
                     log("Order history persistence failed after successful payment", historyEx);
                 }
+
+                sendPurchaseEmailBestEffort(request, attendeeId, paymentResult.getTransactionRef(), purchasedTickets);
+
                 pending.clear();
                 getOrCreateCart(session).clear();
                 if (purchased < requested) {
                     request.setAttribute("ticketWindowUrl",
                             request.getContextPath() + "/ViewMyTickets.do?msg=CheckoutPartial&popup=1");
                     request.setAttribute("nextUrl",
-                            request.getContextPath() + "/AttendeeDashboardServlet.do?msg=CheckoutPartial");
+                        request.getContextPath() + "/ViewMyTickets.do?msg=CheckoutPartial");
                     request.setAttribute("transactionRef", paymentResult.getTransactionRef());
-                    request.setAttribute("popupWindowName", popupWindowName);
                 } else {
                     request.setAttribute("ticketWindowUrl",
                             request.getContextPath() + "/ViewMyTickets.do?msg=PaymentSuccess&popup=1");
                     request.setAttribute("nextUrl",
-                            request.getContextPath() + "/AttendeeDashboardServlet.do?msg=PaymentSuccess");
+                        request.getContextPath() + "/ViewMyTickets.do?msg=PaymentSuccess");
                     request.setAttribute("transactionRef", paymentResult.getTransactionRef());
-                    request.setAttribute("popupWindowName", popupWindowName);
                 }
                 request.getRequestDispatcher("/Attendee/PaymentSuccessRedirect.jsp").forward(request, response);
                 return;
@@ -146,6 +167,70 @@ public class PaymentGatewayServlet extends HttpServlet {
             log("Payment processing failed", e);
             response.sendRedirect(request.getContextPath() + "/PaymentGateway.do?err=PaymentFailed");
         }
+    }
+
+    private boolean hasSufficientStock(Map<Integer, Map<String, Object>> pending) throws SQLException {
+        if (pending == null || pending.isEmpty()) {
+            return false;
+        }
+        for (Map<String, Object> item : pending.values()) {
+            if (item == null) {
+                continue;
+            }
+            int eventId = ((Number) item.get("eventID")).intValue();
+            int quantity = ((Number) item.get("quantity")).intValue();
+            int available = attendeeDAO.countAvailableTicketStockForEvent(eventId);
+            if (available < quantity) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void sendPurchaseEmailBestEffort(HttpServletRequest request, int attendeeId,
+            String transactionRef, List<Map<String, Object>> purchasedTickets) {
+        if (purchasedTickets == null || purchasedTickets.isEmpty()) {
+            return;
+        }
+        try {
+            Attendee attendee = attendeeDAO.getAttendeeByID(attendeeId);
+            if (attendee == null || attendee.getEmail() == null || attendee.getEmail().trim().isEmpty()) {
+                return;
+            }
+
+            String first = attendee.getFirstname() == null ? "" : attendee.getFirstname().trim();
+            String last = attendee.getLastname() == null ? "" : attendee.getLastname().trim();
+            String attendeeName = (first + " " + last).trim();
+            String myTicketsLink = resolveAppBaseUrl(request)
+                    + request.getContextPath()
+                    + "/ViewMyTickets.do?msg=PaymentSuccess";
+
+            emailService.sendTicketPurchaseEmail(attendee.getEmail(), attendeeName,
+                    transactionRef, purchasedTickets, myTicketsLink);
+        } catch (Exception ex) {
+            // Ticket delivery should not block successful checkout.
+            log("Ticket purchase email delivery failed", ex);
+        }
+    }
+
+    private String resolveAppBaseUrl(HttpServletRequest request) {
+        String configured = System.getProperty("tickify.app.baseUrl");
+        if (configured != null) {
+            configured = configured.trim();
+            if (!configured.isEmpty()) {
+                if (configured.endsWith("/")) {
+                    return configured.substring(0, configured.length() - 1);
+                }
+                return configured;
+            }
+        }
+
+        String scheme = request.getScheme();
+        String host = request.getServerName();
+        int port = request.getServerPort();
+        boolean defaultPort = ("http".equalsIgnoreCase(scheme) && port == 80)
+                || ("https".equalsIgnoreCase(scheme) && port == 443);
+        return scheme + "://" + host + (defaultPort ? "" : ":" + port);
     }
 
     @SuppressWarnings("unchecked")

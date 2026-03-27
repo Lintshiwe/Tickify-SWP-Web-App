@@ -84,6 +84,16 @@ public class BookTicketServlet extends HttpServlet {
                     return;
                 }
 
+                int availableStock = attendeeDAO.countAvailableTicketStockForEvent(eventId);
+                if (availableStock <= 0) {
+                    if (ajax) {
+                        writeJson(response, false, "This event is sold out.", null, null);
+                        return;
+                    }
+                    redirectWithStatus(request, response, returnTo, "err=SoldOut");
+                    return;
+                }
+
                 if (isRestrictedForMinor(attendeeId, eventInfo)) {
                     if (ajax) {
                         writeJson(response, false, "This event is age-restricted for under-18 accounts.", null, null);
@@ -174,15 +184,6 @@ public class BookTicketServlet extends HttpServlet {
         private void checkoutCart(HttpServletRequest request, HttpServletResponse response, HttpSession session, int attendeeId, String returnTo)
             throws IOException, SQLException {
         boolean ajax = isAjax(request);
-        String acceptedTerms = request.getParameter("acceptNoRefund");
-        if (!"yes".equalsIgnoreCase(acceptedTerms)) {
-            if (ajax) {
-                writeJson(response, false, "Please accept no-refund terms before continuing.", null, null);
-                return;
-            }
-            redirectWithStatus(request, response, returnTo, "err=TermsRequired");
-            return;
-        }
         Map<Integer, Map<String, Object>> cart = getOrCreateCart(session);
         if (cart.isEmpty()) {
             if (ajax) {

@@ -5,6 +5,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -78,8 +79,9 @@ public class EventManagerDashboardDAO {
                 + "JOIN scan_log sl ON sl.venueGuardID = g.venueGuardID "
                 + "WHERE m.eventManagerID = ? "
                 + "AND sl.result = 'INVALID' "
-                + "AND sl.scannedAt >= CURRENT_TIMESTAMP - 1 DAY";
-        return runCount(sql, eventManagerId);
+                + "AND sl.scannedAt >= ?";
+        Timestamp cutoff = new Timestamp(System.currentTimeMillis() - (24L * 60L * 60L * 1000L));
+        return runCountWithTimestamp(sql, eventManagerId, cutoff);
     }
 
     public int countValidScansLast24h(int eventManagerId) throws SQLException {
@@ -90,8 +92,9 @@ public class EventManagerDashboardDAO {
                 + "JOIN scan_log sl ON sl.venueGuardID = g.venueGuardID "
                 + "WHERE m.eventManagerID = ? "
                 + "AND sl.result = 'VALID' "
-                + "AND sl.scannedAt >= CURRENT_TIMESTAMP - 1 DAY";
-        return runCount(sql, eventManagerId);
+                + "AND sl.scannedAt >= ?";
+        Timestamp cutoff = new Timestamp(System.currentTimeMillis() - (24L * 60L * 60L * 1000L));
+        return runCountWithTimestamp(sql, eventManagerId, cutoff);
     }
 
     public int countEventsWithoutTickets(int eventManagerId) throws SQLException {
@@ -134,6 +137,20 @@ public class EventManagerDashboardDAO {
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, eventManagerId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return 0;
+                }
+                return rs.getInt(1);
+            }
+        }
+    }
+
+    private int runCountWithTimestamp(String sql, int eventManagerId, Timestamp cutoff) throws SQLException {
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, eventManagerId);
+            ps.setTimestamp(2, cutoff);
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) {
                     return 0;

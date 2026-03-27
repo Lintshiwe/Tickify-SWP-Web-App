@@ -89,8 +89,8 @@ public class AttendeeDAO {
         String sql = "SELECT e.eventID, e.name AS eventName, e.type, e.date, "
                 + "v.name AS venueName, v.address, "
                 + "MIN(t.price) AS minPrice, "
-                + "COUNT(DISTINCT eht.ticketID) AS totalTickets, "
-                + "COUNT(DISTINCT aht.ticketID) AS soldTickets, "
+            + "COUNT(DISTINCT eht.ticketID) AS totalTickets, "
+            + "COUNT(DISTINCT aht.ticketID) AS soldTickets, "
                 + "MAX(CASE WHEN ahe.attendeeID IS NOT NULL THEN 1 ELSE 0 END) AS purchasedByAttendee "
                 + "FROM event e "
                 + "JOIN venue v ON e.venueID = v.venueID "
@@ -120,7 +120,8 @@ public class AttendeeDAO {
                     event.put("price", rs.getDouble("minPrice"));
 
                     int totalTickets = rs.getInt("totalTickets");
-                    int soldTickets = rs.getInt("soldTickets");
+                    int soldTickets = Math.min(totalTickets, rs.getInt("soldTickets"));
+                    int availableTickets = Math.max(0, totalTickets - soldTickets);
                     int soldPercentage = 0;
                     if (totalTickets > 0) {
                         soldPercentage = (int) Math.round((soldTickets * 100.0) / totalTickets);
@@ -131,6 +132,7 @@ public class AttendeeDAO {
 
                     event.put("totalTickets", totalTickets);
                     event.put("soldTickets", soldTickets);
+                    event.put("availableTickets", availableTickets);
                     event.put("soldPercentage", soldPercentage);
                     event.put("nearlySoldOut", nearlySoldOut);
                     event.put("soldOut", soldOut);
@@ -193,6 +195,49 @@ public class AttendeeDAO {
                 }
             }
         }
+        return tickets;
+    }
+
+    public List<Map<String, Object>> getRecentAttendeeTicketsForEvent(int attendeeID, int eventID, int maxRows) throws SQLException {
+        List<Map<String, Object>> tickets = new ArrayList<>();
+        if (attendeeID <= 0 || eventID <= 0 || maxRows <= 0) {
+            return tickets;
+        }
+
+        String sql = "SELECT t.ticketID, t.name AS ticketNumber, t.price, q.barstring, "
+                + "e.eventID, e.name AS eventName, e.type, e.date, v.name AS venueName, v.address "
+                + "FROM attendee_has_ticket aht "
+                + "JOIN ticket t ON aht.ticketID = t.ticketID "
+                + "JOIN qrcode q ON t.QRcodeID = q.QRcodeID "
+                + "JOIN event_has_ticket eht ON t.ticketID = eht.ticketID "
+                + "JOIN event e ON eht.eventID = e.eventID "
+                + "LEFT JOIN venue v ON e.venueID = v.venueID "
+                + "WHERE aht.attendeeID = ? AND e.eventID = ? "
+                + "ORDER BY t.ticketID DESC";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, attendeeID);
+            ps.setInt(2, eventID);
+            ps.setMaxRows(maxRows);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Map<String, Object> ticket = new HashMap<>();
+                    ticket.put("eventName", rs.getString("eventName"));
+                    ticket.put("eventID", rs.getInt("eventID"));
+                    ticket.put("eventType", rs.getString("type"));
+                    ticket.put("eventDate", rs.getDate("date"));
+                    ticket.put("venueName", rs.getString("venueName"));
+                    ticket.put("venueAddress", rs.getString("address"));
+                    ticket.put("ticketID", rs.getInt("ticketID"));
+                    ticket.put("ticketNumber", rs.getString("ticketNumber"));
+                    ticket.put("price", rs.getDouble("price"));
+                    ticket.put("qrCode", rs.getString("barstring"));
+                    tickets.add(ticket);
+                }
+            }
+        }
+
         return tickets;
     }
 
@@ -435,6 +480,26 @@ public class AttendeeDAO {
         return 0;
     }
 
+    public int countAvailableTicketStockForEvent(int eventID) throws SQLException {
+        String sql = "SELECT COUNT(DISTINCT eht.ticketID) AS availableCount "
+                + "FROM event_has_ticket eht "
+                + "JOIN ticket t ON t.ticketID = eht.ticketID "
+                + "LEFT JOIN attendee_has_ticket aht ON aht.ticketID = eht.ticketID "
+                + "WHERE eht.eventID = ? "
+                + "AND aht.ticketID IS NULL";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, eventID);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt("availableCount");
+                }
+            }
+        }
+        return 0;
+    }
+
     public Map<String, Object> getEventCartDetails(int eventID) throws SQLException {
         String sql = "SELECT e.eventID, e.name AS eventName, e.type AS eventType, COALESCE(MIN(t.price), 0) AS minPrice "
                 + "FROM event e "
@@ -564,9 +629,9 @@ public class AttendeeDAO {
 
         String ticketQuery = "SELECT t.ticketID FROM event_has_ticket eht "
                 + "JOIN ticket t ON t.ticketID = eht.ticketID "
-                + "LEFT JOIN attendee_has_ticket aht ON aht.ticketID = t.ticketID AND aht.attendeeID = ? "
-                + "WHERE eht.eventID = ? AND aht.ticketID IS NULL "
-                + "ORDER BY t.price ASC";
+                + "LEFT JOIN attendee_has_ticket aht ON aht.ticketID = t.ticketID "
+            + "WHERE eht.eventID = ? AND aht.ticketID IS NULL "
+                + "ORDER BY t.price ASC, t.ticketID ASC";
         String insertTicketSql = "INSERT INTO attendee_has_ticket(attendeeID, ticketID) VALUES(?, ?)";
         String insertEventSql = "INSERT INTO attendee_has_event(attendeeID, eventID) VALUES(?, ?)";
         String existsEventSql = "SELECT 1 FROM attendee_has_event WHERE attendeeID = ? AND eventID = ?";
@@ -579,8 +644,7 @@ public class AttendeeDAO {
 
             List<Integer> candidateTicketIds = new ArrayList<>();
             try (PreparedStatement ps = conn.prepareStatement(ticketQuery)) {
-                ps.setInt(1, attendeeID);
-                ps.setInt(2, eventID);
+                ps.setInt(1, eventID);
                 try (ResultSet rs = ps.executeQuery()) {
                     while (rs.next() && purchasedCount < quantity) {
                         candidateTicketIds.add(rs.getInt("ticketID"));
@@ -625,8 +689,8 @@ public class AttendeeDAO {
         List<Map<String, Object>> events = new ArrayList<>();
         String sql = "SELECT e.eventID, e.name AS eventName, e.type, e.date, "
                 + "v.name AS venueName, v.address, MIN(t.price) AS minPrice, "
-                + "COUNT(DISTINCT eht.ticketID) AS totalTickets, "
-                + "COUNT(DISTINCT aht.ticketID) AS soldTickets, "
+            + "COUNT(DISTINCT eht.ticketID) AS totalTickets, "
+            + "COUNT(DISTINCT aht.ticketID) AS soldTickets, "
                 + "MAX(CASE WHEN ahe.attendeeID IS NOT NULL THEN 1 ELSE 0 END) AS purchasedByAttendee "
                 + "FROM attendee_wishlist aw "
                 + "JOIN event e ON aw.eventID = e.eventID "
@@ -655,7 +719,8 @@ public class AttendeeDAO {
                     event.put("price", rs.getDouble("minPrice"));
 
                     int totalTickets = rs.getInt("totalTickets");
-                    int soldTickets = rs.getInt("soldTickets");
+                    int soldTickets = Math.min(totalTickets, rs.getInt("soldTickets"));
+                    int availableTickets = Math.max(0, totalTickets - soldTickets);
                     int soldPercentage = 0;
                     if (totalTickets > 0) {
                         soldPercentage = (int) Math.round((soldTickets * 100.0) / totalTickets);
@@ -663,6 +728,7 @@ public class AttendeeDAO {
 
                     event.put("totalTickets", totalTickets);
                     event.put("soldTickets", soldTickets);
+                    event.put("availableTickets", availableTickets);
                     event.put("soldPercentage", soldPercentage);
                     event.put("nearlySoldOut", totalTickets > 0 && soldPercentage >= 80 && soldPercentage < 100);
                     event.put("soldOut", totalTickets > 0 && soldPercentage >= 100);
@@ -819,6 +885,42 @@ public class AttendeeDAO {
                 conn.close();
             }
         }
+    }
+
+    public List<Map<String, Object>> getEventStockSnapshots() throws SQLException {
+        List<Map<String, Object>> events = new ArrayList<>();
+        String sql = "SELECT e.eventID, COUNT(DISTINCT eht.ticketID) AS totalTickets, "
+                + "COUNT(DISTINCT aht.ticketID) AS soldTickets "
+                + "FROM event e "
+                + "LEFT JOIN event_has_ticket eht ON e.eventID = eht.eventID "
+                + "LEFT JOIN attendee_has_ticket aht ON aht.ticketID = eht.ticketID "
+                + "GROUP BY e.eventID";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement ps = conn.prepareStatement(sql);
+                ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                int eventId = rs.getInt("eventID");
+                int totalTickets = rs.getInt("totalTickets");
+                int soldTickets = Math.min(totalTickets, rs.getInt("soldTickets"));
+                int availableTickets = Math.max(0, totalTickets - soldTickets);
+                int soldPercentage = totalTickets > 0
+                        ? (int) Math.round((soldTickets * 100.0) / totalTickets)
+                        : 0;
+
+                Map<String, Object> event = new HashMap<>();
+                event.put("id", eventId);
+                event.put("totalTickets", totalTickets);
+                event.put("soldTickets", soldTickets);
+                event.put("availableTickets", availableTickets);
+                event.put("soldPercentage", soldPercentage);
+                event.put("soldOut", totalTickets > 0 && soldPercentage >= 100);
+                event.put("nearlySoldOut", totalTickets > 0 && soldPercentage >= 80 && soldPercentage < 100);
+                events.add(event);
+            }
+        }
+
+        return events;
     }
 
 public boolean deleteAttendee(int id) throws SQLException {
