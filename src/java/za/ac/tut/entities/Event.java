@@ -268,7 +268,7 @@ public class Event implements Serializable {
      */
     public void setVenue(Venue venue) {
         this.venue     = venue;
-        this.venueID = (venue != null) ? venue.getVenueID(): null;
+        this.venueID = (venue != null) ? venue.getVenueID() : 0;
     }
 
     public List<Attendee> getAttendees() {

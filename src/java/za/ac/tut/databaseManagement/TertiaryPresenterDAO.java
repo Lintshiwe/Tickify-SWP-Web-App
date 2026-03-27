@@ -15,31 +15,37 @@ public class TertiaryPresenterDAO {
     private TertiaryPresenter mapRow(ResultSet rs) throws SQLException {
         TertiaryPresenter tp = new TertiaryPresenter();
         tp.setTertiaryPresenterID(rs.getInt("tertiaryPresenterID"));
+        tp.setUsername(rs.getString("username"));
         tp.setFirstname(rs.getString("firstname"));
         tp.setLastname(rs.getString("lastname"));
         tp.setEmail(rs.getString("email"));
         tp.setPassword(rs.getString("password"));
         tp.setTertiaryInstitution(rs.getString("tertiaryInstitution"));
+        tp.setPhoneNumber(rs.getString("phoneNumber"));
+        tp.setBiography(rs.getString("biography"));
         // For JDBC, we leave event/venue as null or fetch separately if needed
         return tp;
     }
 
     public boolean insertPresenter(TertiaryPresenter tp) throws SQLException {
         // 1. Updated SQL to include all 7 columns (excluding the auto-increment PK)
-        String sql = "INSERT INTO TERTIARY_PRESENTER (firstname, lastname, email, password, tertiaryInstitution, eventID, venueID) VALUES (?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO TERTIARY_PRESENTER (username, firstname, lastname, email, password, tertiaryInstitution, phoneNumber, biography, eventID, venueID) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
 
             // 2. Set the basic Strings
-            ps.setString(1, tp.getFirstname());
-            ps.setString(2, tp.getLastname());
-            ps.setString(3, tp.getEmail());
-            ps.setString(4, tp.getPassword());
-            ps.setString(5, tp.getTertiaryInstitution());
+            ps.setString(1, tp.getUsername());
+            ps.setString(2, tp.getFirstname());
+            ps.setString(3, tp.getLastname());
+            ps.setString(4, tp.getEmail());
+            ps.setString(5, tp.getPassword());
+            ps.setString(6, tp.getTertiaryInstitution());
+            ps.setString(7, tp.getPhoneNumber());
+            ps.setString(8, tp.getBiography());
 
-            ps.setInt(6, 2);
+            ps.setInt(9, 2);
 
-            ps.setInt(7, 3);
+            ps.setInt(10, 3);
 
             return ps.executeUpdate() > 0;
         }

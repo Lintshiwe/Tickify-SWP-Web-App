@@ -4,6 +4,8 @@ package za.ac.tut.databaseManagement;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import za.ac.tut.databaseConnection.DatabaseConnection;
 import za.ac.tut.entities.Event;
 
@@ -83,6 +85,28 @@ public class EventDAO {
 
     public boolean deleteEvent(int id) throws SQLException {
         return executeUpdate("DELETE FROM event WHERE eventID = ?", id);
+    }
+
+    public boolean updateEventAlbumImage(int eventID, String filename, String mimeType, byte[] imageData) throws SQLException {
+        String sql = "UPDATE event SET imageFilename = ?, imageMimeType = ?, imageData = ? WHERE eventID = ?";
+        return executeUpdate(sql, filename, mimeType, imageData, eventID);
+    }
+
+    public Map<String, Object> getEventAlbumImage(int eventID) throws SQLException {
+        String sql = "SELECT imageMimeType, imageData FROM event WHERE eventID = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, eventID);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    Map<String, Object> result = new HashMap<>();
+                    result.put("mimeType", rs.getString("imageMimeType"));
+                    result.put("imageData", rs.getBytes("imageData"));
+                    return result;
+                }
+            }
+        }
+        return null;
     }
 
     /**

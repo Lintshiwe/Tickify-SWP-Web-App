@@ -8,11 +8,11 @@ import java.util.Enumeration;
 
 public class DatabaseConnection {
     
-    private static final String DB_HOST     = "localhost";
-    private static final String DB_PORT     = "1527";
-    private static final String DB_NAME     = "tickifyDB";
-    private static final String DB_USER     = "tickify";
-    private static final String DB_PASSWORD = "123";
+    private static final String DB_HOST     = resolve("tickify.db.host", "TICKIFY_DB_HOST", "localhost");
+    private static final String DB_PORT     = resolve("tickify.db.port", "TICKIFY_DB_PORT", "1527");
+    private static final String DB_NAME     = resolve("tickify.db.name", "TICKIFY_DB_NAME", "tickifyDB");
+    private static final String DB_USER     = resolve("tickify.db.user", "TICKIFY_DB_USER", "tickify");
+    private static final String DB_PASSWORD = resolve("tickify.db.password", "TICKIFY_DB_PASSWORD", "123");
 
     // Use the Network Client Driver for Derby
     private static final String DRIVER_CLASS = "org.apache.derby.jdbc.ClientDriver";
@@ -50,6 +50,20 @@ public class DatabaseConnection {
             System.err.println("Tickify SQL Error: " + e.getMessage() + " | State: " + e.getSQLState());
             throw e;
         }
+    }
+
+    private static String resolve(String propertyKey, String envKey, String fallback) {
+        String prop = System.getProperty(propertyKey);
+        if (prop != null && !prop.trim().isEmpty()) {
+            return prop.trim();
+        }
+
+        String env = System.getenv(envKey);
+        if (env != null && !env.trim().isEmpty()) {
+            return env.trim();
+        }
+
+        return fallback;
     }
 
     public static void closeConnection(Connection conn) {

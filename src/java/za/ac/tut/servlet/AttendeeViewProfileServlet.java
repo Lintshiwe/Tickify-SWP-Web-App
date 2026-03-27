@@ -61,8 +61,14 @@ public class AttendeeViewProfileServlet extends HttpServlet {
         // 1. Capture the data from the form textfields
         String firstName = request.getParameter("firstName");
         String lastName = request.getParameter("lastName");
+        String username = request.getParameter("username");
         String email = request.getParameter("email");
         String tertiary = request.getParameter("tertiary");
+        String clientType = request.getParameter("clientType");
+        String phoneNumber = request.getParameter("phoneNumber");
+        String studentNumber = request.getParameter("studentNumber");
+        String idPassportNumber = request.getParameter("idPassportNumber");
+        String biography = request.getParameter("biography");
 
         try {
             AttendeeDAO dao = new AttendeeDAO();
@@ -74,14 +80,23 @@ public class AttendeeViewProfileServlet extends HttpServlet {
                 // 3. Update the fields with the new form data
                 a.setFirstname(firstName);
                 a.setLastname(lastName);
+                a.setUsername(username);
                 a.setEmail(email);
                 a.setTertiaryInstitution(tertiary);
+                a.setClientType(clientType);
+                a.setPhoneNumber(phoneNumber);
+                a.setStudentNumber(studentNumber);
+                a.setIdPassportNumber(idPassportNumber);
+                a.setBiography(biography);
 
                 boolean isUpdated = dao.updateAttendee(a);
 
                 if (isUpdated) {
                     // 4. Update the session display name so the header stays current
-                    session.setAttribute("userFullName", firstName + " " + lastName);
+                    String displayName = (username != null && !username.trim().isEmpty())
+                            ? username.trim().toLowerCase()
+                            : firstName + " " + lastName;
+                    session.setAttribute("userFullName", displayName);
                     request.setAttribute("message", "Profile successfully updated!");
                 } else {
                     request.setAttribute("error", "Failed to update profile. Please try again.");

@@ -4,118 +4,129 @@
         <title>Tickify - Event Management</title>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="icon" type="image/x-icon" href="favicon.ico">
         <style>
-            /* Reset and Base Styles */
-            body, html {
+            :root {
+                --green: #79c84a;
+                --green-dark: #5ca833;
+                --bg: #f7faf6;
+                --ink: #3a4a3e;
+                --muted: #76857a;
+                --line: #d8e5d5;
+                --panel: #ffffff;
+            }
+            * { box-sizing: border-box; }
+            body {
                 margin: 0;
-                padding: 0;
-                height: 100%;
-                font-family: Arial, sans-serif;
+                font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+                color: var(--ink);
+                background:
+                    radial-gradient(circle at 10% 0%, #eef8e9 0%, transparent 40%),
+                    radial-gradient(circle at 90% 20%, #edf7e9 0%, transparent 35%),
+                    var(--bg);
+                min-height: 100vh;
                 display: flex;
                 flex-direction: column;
             }
-
-            /* Header - Black with White text */
-            header {
-                background-color: #000000;
-                color: #FFFFFF;
-                padding: 20px;
-                text-align: center;
-                border-bottom: 5px solid #FFD700; /* Yellow accent */
-            }
-
-            /* Bold Tickify appearing first */
-            .logo {
-                font-size: 2.5em;
-                font-weight: bold;
-                letter-spacing: 2px;
-            }
-
-            /* Body - White background */
-            main {
-                flex: 1; /* Pushes footer to bottom */
-                background-color: #FFFFFF;
+            .topbar {
+                background: #fff;
+                border-bottom: 1px solid var(--line);
+                padding: 16px 24px;
                 display: flex;
-                flex-direction: column;
+                justify-content: space-between;
                 align-items: center;
-                justify-content: center;
-                text-align: center;
-                padding: 40px;
             }
-
-            /* Button - Yellow with Black text */
-            .btn-login {
-                background-color: #FFD700;
-                color: #000000;
-                padding: 15px 30px;
+            .logo { font-size: 1.8rem; font-weight: 900; color: var(--green-dark); letter-spacing: 0.04em; }
+            .chip { background: #f1f9ed; color: var(--green-dark); padding: 8px 12px; border-radius: 999px; font-size: .86rem; font-weight: 700; }
+            main { flex: 1; display: grid; place-items: center; padding: 28px 20px; }
+            .hero {
+                width: min(1050px, 100%);
+                background: var(--panel);
+                border: 1px solid var(--line);
+                border-radius: 24px;
+                box-shadow: 0 18px 36px rgba(90, 130, 90, .08);
+                padding: 32px;
+            }
+            .kicker { color: var(--green-dark); font-weight: 800; letter-spacing: .12em; margin: 0 0 10px; }
+            h1 { margin: 0 0 8px; font-size: clamp(2rem, 5vw, 3.2rem); color: #5fca3a; }
+            .subtitle { margin: 0 0 22px; color: var(--muted); font-size: 1.08rem; max-width: 62ch; }
+            .search-row {
+                display: flex;
+                gap: 10px;
+                background: #fbfef9;
+                border: 1px solid #cfe2c9;
+                border-radius: 999px;
+                padding: 8px;
+                max-width: 700px;
+            }
+            .search-row input {
+                flex: 1;
+                border: none;
+                background: transparent;
+                padding: 10px 14px;
+                font-size: 1rem;
+                color: var(--ink);
+            }
+            .search-row input:focus { outline: none; }
+            .search-row a {
                 text-decoration: none;
-                font-weight: bold;
-                border-radius: 5px;
-                font-size: 1.2em;
-                transition: transform 0.2s;
+                background: var(--green);
+                color: #fff;
+                font-weight: 800;
+                border-radius: 999px;
+                padding: 10px 18px;
             }
-
-            .btn-login:hover {
-                transform: scale(1.05);
-                background-color: #e6c200;
+            .highlights {
+                margin-top: 20px;
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 12px;
             }
-
-            /* Footer - Black with Yellow text */
-            footer {
-                background-color: #000000;
-                color: #FFD700;
-                padding: 15px;
-                text-align: center;
-                font-size: 0.9em;
+            .card { background: #fbfef9; border: 1px solid var(--line); border-radius: 14px; padding: 14px; color: var(--muted); }
+            .card strong { display: block; color: var(--ink); margin-bottom: 4px; }
+            footer { text-align: center; padding: 14px; border-top: 1px solid var(--line); background: #fff; color: var(--muted); }
+            @media (max-width: 760px) {
+                .hero { padding: 20px; }
+                .highlights { grid-template-columns: 1fr; }
+                .search-row { border-radius: 14px; }
             }
         </style>
     </head>
-    <body>
-
-        <header>
+    <body data-interest="Event Discovery">
+        <header class="topbar">
             <div class="logo">TICKIFY</div>
-            <p>Your University Event Partner</p>
+            <div class="chip">South Africa Campus Events</div>
         </header>
-
         <main>
-            <h1>Welcome to Tickify</h1>
-            <p>Manage, Book, and Secure University Events across South Africa.</p>
-            <br>
-            <a href="UserSelection.jsp" class="btn-login">Enter System</a>
+            <section class="hero">
+                <p class="kicker">DISCOVER MORE</p>
+                <h1>Live More.</h1>
+                <p class="subtitle">Find events you love, book in seconds, and scan in confidently with a clean, modern ticket experience.</p>
+                <div class="search-row">
+                    <input type="text" placeholder="Search for any event">
+                    <a href="UserSelection.jsp">GO</a>
+                </div>
+                <div class="highlights">
+                    <article class="card"><strong>Fast Booking</strong>Get from discovery to checkout in a few taps.</article>
+                    <article class="card"><strong>Smart Wishlist</strong>Save events and return when you are ready.</article>
+                    <article class="card"><strong>Secure Entry</strong>Validated QR flow for faster gate management.</article>
+                </div>
+            </section>
         </main>
-
         <footer>
-            &copy; 2026 Tickify Group Project. All Rights Reserved.
+            &copy; 2026 Tickify | Secure University Event Platform
         </footer>
-
         <script>
-            window.onload = function () {
+            window.onload = function() {
                 const urlParams = new URLSearchParams(window.location.search);
                 let shouldCleanUrl = false;
-
-                // Check for Account Deletion
-                if (urlParams.get('msg') === 'AccountDeleted') {
-                    alert("Your account has been permanently deleted. We're sorry to see you go!");
-                    shouldCleanUrl = true;
-                }
-
-                // Check for Errors
-                if (urlParams.get('error') === 'DatabaseError') {
-                    alert("An error occurred while trying to delete your account. Please try again later.");
-                    shouldCleanUrl = true;
-                }
-
-                // Check for Logout
-                if (urlParams.get('status') === 'loggedOut') {
-                    alert("You have successfully logged out.");
-                    shouldCleanUrl = true;
-                }
-
-                // Clean the URL only once if any message was shown
-                if (shouldCleanUrl) {
-                    window.history.replaceState({}, document.title, "index.html");
-                }
+                if (urlParams.get('msg') === 'AccountDeleted') { alert('Your account has been permanently deleted.'); shouldCleanUrl = true; }
+                if (urlParams.get('error') === 'DatabaseError') { alert('An error occurred while deleting your account.'); shouldCleanUrl = true; }
+                if (urlParams.get('status') === 'loggedOut') { alert('You have successfully logged out.'); shouldCleanUrl = true; }
+                if (shouldCleanUrl) { window.history.replaceState({}, document.title, 'index.html'); }
             };
         </script>
+        <script src="assets/error-popup.js"></script>
+        <script src="assets/cookie-consent.js"></script>
     </body>
 </html>

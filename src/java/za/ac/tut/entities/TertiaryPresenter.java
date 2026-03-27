@@ -114,10 +114,13 @@ public class TertiaryPresenter implements Serializable {
     @Column(name = "firstname", length = 45, nullable = false)
     private String firstname;
 
+    @Column(name = "username", length = 45, nullable = true)
+    private String username;
+
     @Column(name = "lastname", length = 45, nullable = false)
     private String lastname;
 
-    @Column(name = "email", length = 45, nullable = false, unique = true)
+    @Column(name = "email", length = 45, nullable = true, unique = true)
     // unique = true — two presenters cannot share the same login email
     private String email;
 
@@ -129,6 +132,12 @@ public class TertiaryPresenter implements Serializable {
     // nullable = false — a presenter must always belong to an institution;
     // this is the defining characteristic of this user role.
     private String tertiaryInstitution;
+
+    @Column(name = "phoneNumber", length = 25, nullable = true)
+    private String phoneNumber;
+
+    @Column(name = "biography", length = 1200, nullable = true)
+    private String biography;
 
     // ── MANY-TO-ONE : TertiaryPresenter → Event (FK: eventID) ────
     // FIX 7 — @ManyToOne + @JoinColumn was completely missing in original.
@@ -224,6 +233,14 @@ public class TertiaryPresenter implements Serializable {
         return firstname;
     }
 
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username == null ? null : username.trim().toLowerCase();
+    }
+
     // FIX 12 — Defensive validation and trim for all required string fields.
     public void setFirstname(String firstname) {
         if (firstname == null || firstname.trim().isEmpty()) {
@@ -247,11 +264,11 @@ public class TertiaryPresenter implements Serializable {
         return email;
     }
 
-    // FIX 12 — Lowercase and trim email for consistent login lookups.
-    //           "Prof@DUT.AC.ZA" and "prof@dut.ac.za" must be treated identically.
+    // Email is optional when username is used for login.
     public void setEmail(String email) {
         if (email == null || email.trim().isEmpty()) {
-            throw new IllegalArgumentException("TertiaryPresenter email must not be blank.");
+            this.email = null;
+            return;
         }
         this.email = email.trim().toLowerCase();
     }
@@ -282,11 +299,34 @@ public class TertiaryPresenter implements Serializable {
         this.tertiaryInstitution = tertiaryInstitution.trim();
     }
 
+    public String getPhoneNumber() {
+        return phoneNumber;
+    }
+
+    public void setPhoneNumber(String phoneNumber) {
+        this.phoneNumber = phoneNumber == null ? null : phoneNumber.trim();
+    }
+
+    public String getBiography() {
+        return biography;
+    }
+
+    public void setBiography(String biography) {
+        this.biography = biography == null ? null : biography.trim();
+    }
+
     // ── Convenience method ────────────────────────────────────────
     // FIX 13 — Useful in JSP/EL: ${tertiaryPresenter.fullName} instead of
     //           ${tertiaryPresenter.firstname} ${tertiaryPresenter.lastname}
     public String getFullName() {
         return firstname + " " + lastname;
+    }
+
+    public String getDisplayName() {
+        if (username != null && !username.trim().isEmpty()) {
+            return username;
+        }
+        return getFullName();
     }
 
     // ── Relationship Getters / Setters ────────────────────────────

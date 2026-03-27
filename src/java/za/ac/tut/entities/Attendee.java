@@ -1,6 +1,7 @@
 package za.ac.tut.entities;
 
 import java.io.Serializable;
+import java.util.Date;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -21,6 +22,8 @@ import javax.persistence.ManyToOne;
 import javax.persistence.NamedQueries;
 import javax.persistence.NamedQuery;
 import javax.persistence.Table;
+import javax.persistence.Temporal;
+import javax.persistence.TemporalType;
 
 
 @Entity
@@ -68,13 +71,35 @@ public class Attendee implements Serializable {
     // nullable = true — not every attendee may be from a tertiary institution
     private String tertiaryInstitution;
 
+    @Column(name = "username", length = 45, nullable = true)
+    private String username;
+
+    @Column(name = "clientType", length = 20, nullable = true)
+    private String clientType;
+
+    @Column(name = "phoneNumber", length = 25, nullable = true)
+    private String phoneNumber;
+
+    @Column(name = "studentNumber", length = 45, nullable = true)
+    private String studentNumber;
+
+    @Column(name = "idPassportNumber", length = 45, nullable = true)
+    private String idPassportNumber;
+
+    @Temporal(TemporalType.DATE)
+    @Column(name = "dateOfBirth", nullable = true)
+    private Date dateOfBirth;
+
+    @Column(name = "biography", length = 1200, nullable = true)
+    private String biography;
+
     @Column(name = "firstname", length = 45, nullable = false)
     private String firstname;
 
     @Column(name = "lastname", length = 45, nullable = false)
     private String lastname;
 
-    @Column(name = "email", length = 45, nullable = false, unique = true)
+    @Column(name = "email", length = 45, nullable = true, unique = true)
     // unique = true — two attendees cannot share the same email address (login credential)
     private String email;
 
@@ -171,6 +196,62 @@ public class Attendee implements Serializable {
                 : null;
     }
 
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username == null ? null : username.trim().toLowerCase();
+    }
+
+    public String getClientType() {
+        return clientType;
+    }
+
+    public void setClientType(String clientType) {
+        this.clientType = clientType == null ? null : clientType.trim().toUpperCase();
+    }
+
+    public String getPhoneNumber() {
+        return phoneNumber;
+    }
+
+    public void setPhoneNumber(String phoneNumber) {
+        this.phoneNumber = phoneNumber == null ? null : phoneNumber.trim();
+    }
+
+    public String getStudentNumber() {
+        return studentNumber;
+    }
+
+    public void setStudentNumber(String studentNumber) {
+        this.studentNumber = studentNumber == null ? null : studentNumber.trim();
+    }
+
+    public String getIdPassportNumber() {
+        return idPassportNumber;
+    }
+
+    public void setIdPassportNumber(String idPassportNumber) {
+        this.idPassportNumber = idPassportNumber == null ? null : idPassportNumber.trim();
+    }
+
+    public Date getDateOfBirth() {
+        return dateOfBirth;
+    }
+
+    public void setDateOfBirth(Date dateOfBirth) {
+        this.dateOfBirth = dateOfBirth;
+    }
+
+    public String getBiography() {
+        return biography;
+    }
+
+    public void setBiography(String biography) {
+        this.biography = biography == null ? null : biography.trim();
+    }
+
     public String getFirstname() {
         return firstname;
     }
@@ -199,11 +280,11 @@ public class Attendee implements Serializable {
         return email;
     }
 
-    // FIX 13 — Trim and lowercase email for consistent login lookups.
-    //           "User@DUT.ac.za" and "user@dut.ac.za" must be treated as the same.
+    // Email is optional for attendee registration when username is provided.
     public void setEmail(String email) {
-        if (email == null || email.isEmpty()) {
-            throw new IllegalArgumentException("Attendee email must not be blank.");
+        if (email == null || email.trim().isEmpty()) {
+            this.email = null;
+            return;
         }
         this.email = email.trim().toLowerCase();
     }
@@ -227,6 +308,13 @@ public class Attendee implements Serializable {
     //           ${attendee.firstname} ${attendee.lastname}
     public String getFullName() {
         return firstname + " " + lastname;
+    }
+
+    public String getDisplayName() {
+        if (username != null && !username.trim().isEmpty()) {
+            return username;
+        }
+        return getFullName();
     }
 
     // ── Relationship Getters / Setters ────────────────────────────
@@ -313,6 +401,7 @@ public class Attendee implements Serializable {
     public String toString() {
         return "Attendee{"
                 + "attendeeID=" + attendeeID
+            + ", username='" + username + '\''
                 + ", firstname='" + firstname + '\''
                 + ", lastname='" + lastname + '\''
                 + ", email='" + email + '\''

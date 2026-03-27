@@ -4,7 +4,12 @@
  */
 package za.ac.tut.databaseConnection;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.sql.*;
+import za.ac.tut.security.PasswordUtil;
 
 /**
  *
@@ -15,7 +20,11 @@ public class DatabaseInitializer {
     public static void initialize() {
         try (Connection conn = DatabaseConnection.getConnection()) {
             createTables(conn);
+            ensureClientProfileColumns(conn);
+            ensureRootPasswordConfig(conn);
             seedData(conn);
+            ensureAdditionalCampusAttendees(conn, 100);
+            seedAdverts(conn);
             System.out.println("Tickify DB initialized successfully.");
         } catch (SQLException e) {
             System.err.println("DB initialization error: " + e.getMessage());
@@ -49,10 +58,15 @@ public class DatabaseInitializer {
                 "  type     VARCHAR(45)," +
                 "  date     TIMESTAMP," +
                 "  venueID  INT NOT NULL," +
+                "  imageFilename VARCHAR(255)," +
+                "  imageMimeType VARCHAR(100)," +
+                "  imageData BLOB," +
                 "  FOREIGN KEY (venueID) REFERENCES venue(venueID)" +
                 ")"
             );
         }
+
+        ensureEventImageColumns(conn);
  
         // qrcode
         if (!tableExists(conn, "QRCODE")) {
@@ -85,7 +99,14 @@ public class DatabaseInitializer {
             st.execute(
                 "CREATE TABLE attendee (" +
                 "  attendeeID           INT NOT NULL GENERATED ALWAYS AS IDENTITY PRIMARY KEY," +
+                "  username             VARCHAR(45)," +
+                "  clientType           VARCHAR(20)," +
                 "  tertiaryInstitution  VARCHAR(45)," +
+                "  phoneNumber          VARCHAR(25)," +
+                "  studentNumber        VARCHAR(45)," +
+                "  idPassportNumber     VARCHAR(45)," +
+                "  dateOfBirth          DATE," +
+                "  biography            VARCHAR(1200)," +
                 "  firstname            VARCHAR(45)," +
                 "  lastname             VARCHAR(45)," +
                 "  email                VARCHAR(45) UNIQUE," +
@@ -135,11 +156,14 @@ public class DatabaseInitializer {
             st.execute(
                 "CREATE TABLE tertiary_presenter (" +
                 "  tertiaryPresenterID INT NOT NULL GENERATED ALWAYS AS IDENTITY PRIMARY KEY," +
+                "  username            VARCHAR(45)," +
                 "  firstname           VARCHAR(45)," +
                 "  lastname            VARCHAR(45)," +
                 "  email               VARCHAR(45) UNIQUE," +
                 "  password            VARCHAR(100)," +
                 "  tertiaryInstitution VARCHAR(45)," +
+                "  phoneNumber         VARCHAR(25)," +
+                "  biography           VARCHAR(1200)," +
                 "  eventID             INT NOT NULL," +
                 "  venueID             INT NOT NULL," +
                 "  FOREIGN KEY (eventID) REFERENCES event(eventID)," +
@@ -185,6 +209,19 @@ public class DatabaseInitializer {
                 ")"
             );
         }
+
+        if (!tableExists(conn, "ATTENDEE_WISHLIST")) {
+            st.execute(
+                "CREATE TABLE attendee_wishlist (" +
+                "  attendeeID INT NOT NULL," +
+                "  eventID    INT NOT NULL," +
+                "  createdAt  TIMESTAMP NOT NULL," +
+                "  PRIMARY KEY (attendeeID, eventID)," +
+                "  FOREIGN KEY (attendeeID) REFERENCES attendee(attendeeID)," +
+                "  FOREIGN KEY (eventID) REFERENCES event(eventID)" +
+                ")"
+            );
+        }
  
         if (!tableExists(conn, "EVENT_HAS_TICKET")) {
             st.execute(
@@ -221,8 +258,122 @@ public class DatabaseInitializer {
                 ")"
             );
         }
+
+        if (!tableExists(conn, "SCAN_LOG")) {
+            st.execute(
+                "CREATE TABLE scan_log (" +
+                "  scanLogID    INT NOT NULL GENERATED ALWAYS AS IDENTITY PRIMARY KEY," +
+                "  venueGuardID INT NOT NULL," +
+                "  ticketID     INT," +
+                "  rawCode      VARCHAR(255)," +
+                "  result       VARCHAR(20) NOT NULL," +
+                "  reason       VARCHAR(255)," +
+                "  scannedAt    TIMESTAMP NOT NULL," +
+                "  FOREIGN KEY (venueGuardID) REFERENCES venue_guard(venueGuardID)," +
+                "  FOREIGN KEY (ticketID) REFERENCES ticket(ticketID)" +
+                ")"
+            );
+        }
+
+        if (!tableExists(conn, "ACCOUNT_CONTROL")) {
+            st.execute(
+                "CREATE TABLE account_control (" +
+                "  controlID        INT NOT NULL GENERATED ALWAYS AS IDENTITY PRIMARY KEY," +
+                "  roleName         VARCHAR(40) NOT NULL," +
+                "  userID           INT NOT NULL," +
+                "  isLocked         BOOLEAN NOT NULL," +
+                "  forceReset       BOOLEAN NOT NULL," +
+                "  updatedByAdminID INT," +
+                "  updatedAt        TIMESTAMP NOT NULL," +
+                "  UNIQUE (roleName, userID)" +
+                ")"
+            );
+        }
+
+        if (!tableExists(conn, "ADMIN_AUDIT_LOG")) {
+            st.execute(
+                "CREATE TABLE admin_audit_log (" +
+                "  adminAuditLogID INT NOT NULL GENERATED ALWAYS AS IDENTITY PRIMARY KEY," +
+                "  adminID         INT NOT NULL," +
+                "  actionType      VARCHAR(80) NOT NULL," +
+                "  targetTable     VARCHAR(80)," +
+                "  targetID        VARCHAR(80)," +
+                "  details         VARCHAR(1024)," +
+                "  createdAt       TIMESTAMP NOT NULL," +
+                "  FOREIGN KEY (adminID) REFERENCES admin(adminID)" +
+                ")"
+            );
+        }
+
+        if (!tableExists(conn, "DELETE_REQUEST")) {
+            st.execute(
+                "CREATE TABLE delete_request (" +
+                "  deleteRequestID      INT NOT NULL GENERATED ALWAYS AS IDENTITY PRIMARY KEY," +
+                "  requestedByAdminID   INT NOT NULL," +
+                "  targetRole           VARCHAR(40) NOT NULL," +
+                "  targetUserID         INT NOT NULL," +
+                "  reason               VARCHAR(1024)," +
+                "  status               VARCHAR(20) NOT NULL," +
+                "  requestedAt          TIMESTAMP NOT NULL," +
+                "  resolvedByAdminID    INT," +
+                "  resolvedAt           TIMESTAMP," +
+                "  resolutionNote       VARCHAR(1024)," +
+                "  FOREIGN KEY (requestedByAdminID) REFERENCES admin(adminID)," +
+                "  FOREIGN KEY (resolvedByAdminID) REFERENCES admin(adminID)" +
+                ")"
+            );
+        }
+
+        if (!tableExists(conn, "SYSTEM_CONFIG")) {
+            st.execute(
+                "CREATE TABLE system_config (" +
+                "  configKey   VARCHAR(80) PRIMARY KEY," +
+                "  configValue VARCHAR(1024) NOT NULL," +
+                "  updatedAt   TIMESTAMP NOT NULL" +
+                ")"
+            );
+        }
+
+        if (!tableExists(conn, "ADVERT")) {
+            st.execute(
+                "CREATE TABLE advert (" +
+                "  advertID            INT NOT NULL GENERATED ALWAYS AS IDENTITY PRIMARY KEY," +
+                "  organizationName    VARCHAR(120) NOT NULL," +
+                "  title               VARCHAR(160) NOT NULL," +
+                "  details             VARCHAR(1024)," +
+                "  venue               VARCHAR(255)," +
+                "  eventDate           DATE," +
+                "  paidOrganization    BOOLEAN NOT NULL," +
+                "  selectedForDisplay  BOOLEAN NOT NULL," +
+                "  active              BOOLEAN NOT NULL," +
+                "  imageFilename       VARCHAR(255)," +
+                "  imageMimeType       VARCHAR(100)," +
+                "  imageData           BLOB," +
+                "  createdAt           TIMESTAMP NOT NULL" +
+                ")"
+            );
+        }
  
         st.close();
+    }
+
+    private static void ensureRootPasswordConfig(Connection conn) throws SQLException {
+        String checkSql = "SELECT 1 FROM system_config WHERE configKey = ?";
+        try (PreparedStatement check = conn.prepareStatement(checkSql)) {
+            check.setString(1, "ROOT_PASSWORD_HASH");
+            try (ResultSet rs = check.executeQuery()) {
+                if (rs.next()) {
+                    return;
+                }
+            }
+        }
+
+        String insertSql = "INSERT INTO system_config(configKey, configValue, updatedAt) VALUES(?, ?, CURRENT_TIMESTAMP)";
+        try (PreparedStatement insert = conn.prepareStatement(insertSql)) {
+            insert.setString(1, "ROOT_PASSWORD_HASH");
+            insert.setString(2, PasswordUtil.hashPassword("root123"));
+            insert.executeUpdate();
+        }
     }
  
     // ----------------------------------------------------------------
@@ -284,13 +435,12 @@ public class DatabaseInitializer {
         };
         for (int i = 0; i < 5; i++) {
             pa.setString(1,admins[i][0]); pa.setString(2,admins[i][1]);
-            pa.setString(3,admins[i][2]); pa.setString(4,admins[i][3]); pa.setInt(5,eventIDs[i]);
+            pa.setString(3,admins[i][2]); pa.setString(4,PasswordUtil.hashPassword(admins[i][3])); pa.setInt(5,eventIDs[i]);
             pa.executeUpdate();
         }
         pa.close();
  
         // attendees
-        PreparedStatement pat = conn.prepareStatement("INSERT INTO attendee(tertiaryInstitution,firstname,lastname,email,password,qrcode_QRcodeID) VALUES(?,?,?,?,?,?)");
         String[][] attendees = {
             {"DUT","Lekwene","L","lekwene@student.dut.ac.za","att001"},
             {"UKZN","Ntoampi","LP","ntoampi@student.ukzn.ac.za","att002"},
@@ -299,11 +449,21 @@ public class DatabaseInitializer {
             {"CPUT","Mngadi","AM","mngadi@student.cput.ac.za","att005"}
         };
         int[] attIDs = new int[5];
-        PreparedStatement patg = conn.prepareStatement("INSERT INTO attendee(tertiaryInstitution,firstname,lastname,email,password,qrcode_QRcodeID) VALUES(?,?,?,?,?,?)", Statement.RETURN_GENERATED_KEYS);
+        PreparedStatement patg = conn.prepareStatement("INSERT INTO attendee(username,clientType,tertiaryInstitution,phoneNumber,studentNumber,idPassportNumber,dateOfBirth,biography,firstname,lastname,email,password,qrcode_QRcodeID) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)", Statement.RETURN_GENERATED_KEYS);
         for (int i = 0; i < 5; i++) {
-            patg.setString(1,attendees[i][0]); patg.setString(2,attendees[i][1]);
-            patg.setString(3,attendees[i][2]); patg.setString(4,attendees[i][3]);
-            patg.setString(5,attendees[i][4]); patg.setInt(6,qrIDs[i]);
+            patg.setString(1,("attendee" + (i + 1)));
+            patg.setString(2,"STUDENT");
+            patg.setString(3,attendees[i][0]);
+            patg.setString(4,"000000000" + i);
+            patg.setString(5,"STD-2026-" + (100 + i));
+            patg.setString(6,"ID-ATT-" + (1000 + i));
+            patg.setDate(7,Date.valueOf("2000-01-0" + (i + 1)));
+            patg.setString(8,"Seeded attendee account for testing profile traceability.");
+            patg.setString(9,attendees[i][1]);
+            patg.setString(10,attendees[i][2]);
+            patg.setString(11,attendees[i][3]);
+            patg.setString(12,PasswordUtil.hashPassword(attendees[i][4]));
+            patg.setInt(13,qrIDs[i]);
             patg.executeUpdate();
             try (ResultSet rs = patg.getGeneratedKeys()) { if (rs.next()) attIDs[i] = rs.getInt(1); }
         }
@@ -323,7 +483,7 @@ public class DatabaseInitializer {
         };
         for (int i = 0; i < 5; i++) {
             pg.setString(1,guards[i][0]); pg.setString(2,guards[i][1]);
-            pg.setString(3,guards[i][2]); pg.setString(4,guards[i][3]);
+            pg.setString(3,guards[i][2]); pg.setString(4,PasswordUtil.hashPassword(guards[i][3]));
             pg.setInt(5,eventIDs[i]); pg.setInt(6,venueIDs[i]); pg.setInt(7,qrIDs[5+i]);
             pg.executeUpdate();
             try (ResultSet rs = pg.getGeneratedKeys()) { if (rs.next()) guardIDs[i] = rs.getInt(1); }
@@ -344,7 +504,7 @@ public class DatabaseInitializer {
         };
         for (int i = 0; i < 5; i++) {
             pm.setString(1,managers[i][0]); pm.setString(2,managers[i][1]);
-            pm.setString(3,managers[i][2]); pm.setString(4,managers[i][3]); pm.setInt(5,guardIDs[i]);
+            pm.setString(3,managers[i][2]); pm.setString(4,PasswordUtil.hashPassword(managers[i][3])); pm.setInt(5,guardIDs[i]);
             pm.executeUpdate();
             try (ResultSet rs = pm.getGeneratedKeys()) { if (rs.next()) managerIDs[i] = rs.getInt(1); }
         }
@@ -352,7 +512,7 @@ public class DatabaseInitializer {
  
         // tertiary_presenter
         PreparedStatement ptp = conn.prepareStatement(
-            "INSERT INTO tertiary_presenter(firstname,lastname,email,password,tertiaryInstitution,eventID,venueID) VALUES(?,?,?,?,?,?,?)");
+            "INSERT INTO tertiary_presenter(username,firstname,lastname,email,password,tertiaryInstitution,phoneNumber,biography,eventID,venueID) VALUES(?,?,?,?,?,?,?,?,?,?)");
         String[][] presenters = {
             {"Prof","Zulu","pzulu@dut.ac.za","pres001","DUT"},
             {"Dr","Naidoo","dnaidoo@ukzn.ac.za","pres002","UKZN"},
@@ -361,9 +521,16 @@ public class DatabaseInitializer {
             {"Prof","Jacobs","pjacobs@cput.ac.za","pres005","CPUT"}
         };
         for (int i = 0; i < 5; i++) {
-            ptp.setString(1,presenters[i][0]); ptp.setString(2,presenters[i][1]);
-            ptp.setString(3,presenters[i][2]); ptp.setString(4,presenters[i][3]);
-            ptp.setString(5,presenters[i][4]); ptp.setInt(6,eventIDs[i]); ptp.setInt(7,venueIDs[i]);
+            ptp.setString(1,("presenter" + (i + 1)));
+            ptp.setString(2,presenters[i][0]);
+            ptp.setString(3,presenters[i][1]);
+            ptp.setString(4,presenters[i][2]);
+            ptp.setString(5,PasswordUtil.hashPassword(presenters[i][3]));
+            ptp.setString(6,presenters[i][4]);
+            ptp.setString(7,"011000000" + i);
+            ptp.setString(8,"Seeded presenter account for testing profile traceability.");
+            ptp.setInt(9,eventIDs[i]);
+            ptp.setInt(10,venueIDs[i]);
             ptp.executeUpdate();
         }
         ptp.close();
@@ -396,11 +563,139 @@ public class DatabaseInitializer {
  
         System.out.println("Seed data inserted successfully.");
     }
+
+    private static void seedAdverts(Connection conn) throws SQLException {
+        if (rowCount(conn, "ADVERT") > 0) {
+            return;
+        }
+
+        byte[] imageBytes = loadDefaultAdvertImage();
+        String mimeType = "image/svg+xml";
+
+        String sql = "INSERT INTO advert(organizationName, title, details, venue, eventDate, paidOrganization, selectedForDisplay, active, imageFilename, imageMimeType, imageData, createdAt) "
+                + "VALUES(?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)";
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, "TUT Campus");
+            ps.setString(2, "Freshers Ticket Sales Opening");
+            ps.setString(3, "Freshers event ticket sales open on 14 April.");
+            ps.setString(4, "TUT Emalahleni Sports Ground");
+            ps.setDate(5, Date.valueOf("2026-04-14"));
+            ps.setBoolean(6, true);
+            ps.setBoolean(7, true);
+            ps.setBoolean(8, true);
+            ps.setString(9, "tickify-logo.svg");
+            ps.setString(10, mimeType);
+            ps.setBytes(11, imageBytes);
+            ps.executeUpdate();
+        }
+    }
+
+    private static byte[] loadDefaultAdvertImage() {
+        Path path = Paths.get("/home/lintshiwe/Downloads/tickify-logo.svg");
+        try {
+            if (Files.exists(path)) {
+                return Files.readAllBytes(path);
+            }
+        } catch (Exception ignored) {
+        }
+
+        String fallbackSvg = "<svg xmlns='http://www.w3.org/2000/svg' width='600' height='320' viewBox='0 0 600 320'>"
+                + "<rect width='600' height='320' fill='#eef6e8'/>"
+                + "<text x='40' y='120' font-size='44' fill='#4a5b4f' font-family='Segoe UI, Arial'>TUT Campus Freshers</text>"
+                + "<text x='40' y='170' font-size='30' fill='#5da72f' font-family='Segoe UI, Arial'>Ticket sales open 14 April</text>"
+                + "<text x='40' y='210' font-size='24' fill='#4a5b4f' font-family='Segoe UI, Arial'>Venue: TUT Emalahleni Sports Ground</text>"
+                + "</svg>";
+        return fallbackSvg.getBytes(StandardCharsets.UTF_8);
+    }
  
     private static boolean tableExists(Connection conn, String tableName) throws SQLException {
         DatabaseMetaData meta = conn.getMetaData();
         try (ResultSet rs = meta.getTables(null, null, tableName, new String[]{"TABLE"})) {
             return rs.next();
+        }
+    }
+
+    private static boolean columnExists(Connection conn, String tableName, String columnName) throws SQLException {
+        DatabaseMetaData meta = conn.getMetaData();
+        try (ResultSet rs = meta.getColumns(null, null, tableName, columnName)) {
+            return rs.next();
+        }
+    }
+
+    private static void ensureEventImageColumns(Connection conn) throws SQLException {
+        if (!tableExists(conn, "EVENT")) {
+            return;
+        }
+
+        try (Statement st = conn.createStatement()) {
+            if (!columnExists(conn, "EVENT", "IMAGEFILENAME")) {
+                st.execute("ALTER TABLE event ADD COLUMN imageFilename VARCHAR(255)");
+            }
+            if (!columnExists(conn, "EVENT", "IMAGEMIMETYPE")) {
+                st.execute("ALTER TABLE event ADD COLUMN imageMimeType VARCHAR(100)");
+            }
+            if (!columnExists(conn, "EVENT", "IMAGEDATA")) {
+                st.execute("ALTER TABLE event ADD COLUMN imageData BLOB");
+            }
+        }
+    }
+
+    private static void ensureClientProfileColumns(Connection conn) throws SQLException {
+        if (tableExists(conn, "ATTENDEE")) {
+            try (Statement st = conn.createStatement()) {
+                if (!columnExists(conn, "ATTENDEE", "USERNAME")) {
+                    st.execute("ALTER TABLE attendee ADD COLUMN username VARCHAR(45)");
+                }
+                if (!columnExists(conn, "ATTENDEE", "CLIENTTYPE")) {
+                    st.execute("ALTER TABLE attendee ADD COLUMN clientType VARCHAR(20)");
+                }
+                if (!columnExists(conn, "ATTENDEE", "PHONENUMBER")) {
+                    st.execute("ALTER TABLE attendee ADD COLUMN phoneNumber VARCHAR(25)");
+                }
+                if (!columnExists(conn, "ATTENDEE", "STUDENTNUMBER")) {
+                    st.execute("ALTER TABLE attendee ADD COLUMN studentNumber VARCHAR(45)");
+                }
+                if (!columnExists(conn, "ATTENDEE", "IDPASSPORTNUMBER")) {
+                    st.execute("ALTER TABLE attendee ADD COLUMN idPassportNumber VARCHAR(45)");
+                }
+                if (!columnExists(conn, "ATTENDEE", "DATEOFBIRTH")) {
+                    st.execute("ALTER TABLE attendee ADD COLUMN dateOfBirth DATE");
+                }
+                if (!columnExists(conn, "ATTENDEE", "BIOGRAPHY")) {
+                    st.execute("ALTER TABLE attendee ADD COLUMN biography VARCHAR(1200)");
+                }
+
+                // Backfill profile fields for older rows created before profile enrichment.
+                st.executeUpdate("UPDATE attendee SET username = 'attendee' || TRIM(CAST(attendeeID AS CHAR(12))) WHERE username IS NULL OR TRIM(username) = ''");
+                st.executeUpdate("UPDATE attendee SET clientType = 'STUDENT' WHERE clientType IS NULL OR TRIM(clientType) = ''");
+                st.executeUpdate("UPDATE attendee SET tertiaryInstitution = 'Unspecified' WHERE tertiaryInstitution IS NULL OR TRIM(tertiaryInstitution) = ''");
+                st.executeUpdate("UPDATE attendee SET phoneNumber = '0000000000' WHERE phoneNumber IS NULL OR TRIM(phoneNumber) = ''");
+                st.executeUpdate("UPDATE attendee SET studentNumber = 'STD-' || TRIM(CAST(attendeeID AS CHAR(12))) WHERE studentNumber IS NULL OR TRIM(studentNumber) = ''");
+                st.executeUpdate("UPDATE attendee SET idPassportNumber = 'ID-' || TRIM(CAST(attendeeID AS CHAR(12))) WHERE idPassportNumber IS NULL OR TRIM(idPassportNumber) = ''");
+                st.executeUpdate("UPDATE attendee SET dateOfBirth = DATE('2000-01-01') WHERE dateOfBirth IS NULL");
+                st.executeUpdate("UPDATE attendee SET biography = 'Auto-filled legacy profile for account completeness.' WHERE biography IS NULL OR TRIM(biography) = ''");
+            }
+        }
+
+        if (tableExists(conn, "TERTIARY_PRESENTER")) {
+            try (Statement st = conn.createStatement()) {
+                if (!columnExists(conn, "TERTIARY_PRESENTER", "USERNAME")) {
+                    st.execute("ALTER TABLE tertiary_presenter ADD COLUMN username VARCHAR(45)");
+                }
+                if (!columnExists(conn, "TERTIARY_PRESENTER", "PHONENUMBER")) {
+                    st.execute("ALTER TABLE tertiary_presenter ADD COLUMN phoneNumber VARCHAR(25)");
+                }
+                if (!columnExists(conn, "TERTIARY_PRESENTER", "BIOGRAPHY")) {
+                    st.execute("ALTER TABLE tertiary_presenter ADD COLUMN biography VARCHAR(1200)");
+                }
+
+                // Backfill profile fields for older rows created before profile enrichment.
+                st.executeUpdate("UPDATE tertiary_presenter SET username = 'presenter' || TRIM(CAST(tertiaryPresenterID AS CHAR(12))) WHERE username IS NULL OR TRIM(username) = ''");
+                st.executeUpdate("UPDATE tertiary_presenter SET tertiaryInstitution = 'Unspecified' WHERE tertiaryInstitution IS NULL OR TRIM(tertiaryInstitution) = ''");
+                st.executeUpdate("UPDATE tertiary_presenter SET phoneNumber = '0000000000' WHERE phoneNumber IS NULL OR TRIM(phoneNumber) = ''");
+                st.executeUpdate("UPDATE tertiary_presenter SET biography = 'Auto-filled legacy profile for account completeness.' WHERE biography IS NULL OR TRIM(biography) = ''");
+            }
         }
     }
  
@@ -409,6 +704,136 @@ public class DatabaseInitializer {
              ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM " + table)) {
             return rs.next() ? rs.getInt(1) : 0;
         }
+    }
+
+    private static void ensureAdditionalCampusAttendees(Connection conn, int additionalAttendeeCount) throws SQLException {
+        if (additionalAttendeeCount <= 0 || !tableExists(conn, "ATTENDEE") || !tableExists(conn, "EVENT")
+                || !tableExists(conn, "QRCODE") || !tableExists(conn, "ATTENDEE_HAS_EVENT")) {
+            return;
+        }
+
+        int currentAttendees = rowCount(conn, "ATTENDEE");
+
+        String eligibleEventsSql = "SELECT e.eventID, v.name AS campusName "
+                + "FROM event e "
+                + "JOIN venue v ON e.venueID = v.venueID "
+                + "WHERE EXISTS (SELECT 1 FROM admin a WHERE a.eventID = e.eventID) "
+                + "AND EXISTS (SELECT 1 FROM event_has_manager ehm WHERE ehm.eventID = e.eventID) "
+                + "ORDER BY e.eventID";
+
+        try (PreparedStatement pe = conn.prepareStatement(eligibleEventsSql);
+                ResultSet rs = pe.executeQuery()) {
+
+            java.util.List<Integer> eventIDs = new java.util.ArrayList<>();
+            java.util.List<String> campusNames = new java.util.ArrayList<>();
+
+            while (rs.next()) {
+                eventIDs.add(rs.getInt("eventID"));
+                campusNames.add(rs.getString("campusName"));
+            }
+
+            if (eventIDs.isEmpty()) {
+                return;
+            }
+
+            String[] firstNames = {"Anele", "Boitumelo", "Cynthia", "Dineo", "Elvis", "Fikile", "Gugulethu", "Hlumelo", "Imran", "Jabulile"};
+            String[] lastNames = {"Maseko", "Nkosi", "Mthembu", "Pillay", "Mokoena", "Dlamini", "Khumalo", "Naidoo", "Mabaso", "Sithole"};
+
+            try (PreparedStatement qrInsert = conn.prepareStatement(
+                    "INSERT INTO qrcode(barstring,number) VALUES(?,?)", Statement.RETURN_GENERATED_KEYS);
+                    PreparedStatement attendeeInsert = conn.prepareStatement(
+                            "INSERT INTO attendee(username,clientType,tertiaryInstitution,phoneNumber,studentNumber,idPassportNumber,dateOfBirth,biography,firstname,lastname,email,password,qrcode_QRcodeID) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                            Statement.RETURN_GENERATED_KEYS);
+                    PreparedStatement attendeeEventInsert = conn.prepareStatement(
+                            "INSERT INTO attendee_has_event(attendeeID,eventID) VALUES(?,?)");
+                    PreparedStatement attendeeTicketInsert = conn.prepareStatement(
+                            "INSERT INTO attendee_has_ticket(attendeeID,ticketID) VALUES(?,?)")) {
+
+                long seedTime = System.currentTimeMillis();
+
+                for (int i = 0; i < additionalAttendeeCount; i++) {
+                    int eventId = eventIDs.get(i % eventIDs.size());
+                    String campusName = campusNames.get(i % campusNames.size());
+                    String campusCode = toCampusCode(campusName);
+
+                    String username = "student" + String.format("%03d", currentAttendees + i + 1);
+                    String firstName = firstNames[i % firstNames.length];
+                    String lastName = lastNames[(i + 3) % lastNames.length];
+                    String email = username + "@" + campusCode + ".tickify.ac.za";
+                    String studentNumber = "STD-2026-" + String.format("%04d", currentAttendees + i + 1);
+
+                    qrInsert.setString(1, "QR-AUTO-" + seedTime + "-" + i);
+                    qrInsert.setInt(2, 3000 + currentAttendees + i);
+                    qrInsert.executeUpdate();
+
+                    int qrId;
+                    try (ResultSet qrs = qrInsert.getGeneratedKeys()) {
+                        if (!qrs.next()) {
+                            continue;
+                        }
+                        qrId = qrs.getInt(1);
+                    }
+
+                    attendeeInsert.setString(1, username);
+                    attendeeInsert.setString(2, "STUDENT");
+                    attendeeInsert.setString(3, campusName != null && !campusName.trim().isEmpty() ? campusName : "Unspecified");
+                    attendeeInsert.setString(4, "073" + String.format("%07d", currentAttendees + i));
+                    attendeeInsert.setString(5, studentNumber);
+                    attendeeInsert.setString(6, "ID-AUTO-" + String.format("%05d", currentAttendees + i + 1));
+                    attendeeInsert.setDate(7, Date.valueOf("2001-01-01"));
+                    attendeeInsert.setString(8, "Auto-generated attendee profile for campus-aligned test coverage.");
+                    attendeeInsert.setString(9, firstName);
+                    attendeeInsert.setString(10, lastName);
+                    attendeeInsert.setString(11, email);
+                    attendeeInsert.setString(12, PasswordUtil.hashPassword("student123"));
+                    attendeeInsert.setInt(13, qrId);
+                    attendeeInsert.executeUpdate();
+
+                    int attendeeId;
+                    try (ResultSet ars = attendeeInsert.getGeneratedKeys()) {
+                        if (!ars.next()) {
+                            continue;
+                        }
+                        attendeeId = ars.getInt(1);
+                    }
+
+                    attendeeEventInsert.setInt(1, attendeeId);
+                    attendeeEventInsert.setInt(2, eventId);
+                    attendeeEventInsert.executeUpdate();
+
+                    Integer ticketId = firstTicketForEvent(conn, eventId);
+                    if (ticketId != null) {
+                        attendeeTicketInsert.setInt(1, attendeeId);
+                        attendeeTicketInsert.setInt(2, ticketId);
+                        attendeeTicketInsert.executeUpdate();
+                    }
+                }
+            }
+        }
+    }
+
+    private static Integer firstTicketForEvent(Connection conn, int eventId) throws SQLException {
+        String sql = "SELECT ticketID FROM event_has_ticket WHERE eventID = ? ORDER BY ticketID FETCH FIRST ROW ONLY";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, eventId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1);
+                }
+            }
+        }
+        return null;
+    }
+
+    private static String toCampusCode(String campusName) {
+        if (campusName == null || campusName.trim().isEmpty()) {
+            return "campus";
+        }
+        String normalized = campusName.toLowerCase().replaceAll("[^a-z0-9]+", "").trim();
+        if (normalized.isEmpty()) {
+            return "campus";
+        }
+        return normalized.length() > 12 ? normalized.substring(0, 12) : normalized;
     }
     
 }
