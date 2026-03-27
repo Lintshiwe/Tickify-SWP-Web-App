@@ -105,6 +105,7 @@
             </div>
         </section>
 
+        <c:if test="${isPrivilegedAdmin}">
         <section class="card" style="margin-top:12px;">
             <h3>User Export (CSV / PDF)</h3>
             <p class="muted" style="margin-top:0;">Export all or filtered user records. Main admin can export across all campuses; other admins export within their assigned campus scope.</p>
@@ -168,7 +169,9 @@
                 </div>
             </form>
         </section>
+        </c:if>
 
+        <c:if test="${isPrivilegedAdmin}">
         <section class="card" style="margin-top:12px;">
             <h3>Ticket Export (CSV / PDF)</h3>
             <p class="muted" style="margin-top:0;">Export all or filtered ticket records. Main admin can export across all campuses; other admins export within their assigned campus scope.</p>
@@ -230,6 +233,11 @@
                 </div>
             </form>
         </section>
+        </c:if>
+
+        <c:if test="${!isPrivilegedAdmin}">
+            <div class="flash err">Privacy lock enabled: data exports (CSV/PDF) are restricted to admin@tickify.ac.za only.</div>
+        </c:if>
 
         <c:if test="${isPrivilegedAdmin}">
             <section class="grid" style="margin-top:12px;">

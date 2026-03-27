@@ -1,3 +1,21 @@
 /nbproject/private/
 /dist/
 /build/
+
+# Local database files and logs
+*.db
+*.sqlite
+*.sqlite3
+*.mv.db
+*.trace.db
+*.lck
+*.dat
+derby.log
+db/
+database/
+
+# IDE/runtime noise
+.DS_Store
+*.log
+*.tmp
+*.swp

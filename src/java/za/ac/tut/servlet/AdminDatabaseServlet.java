@@ -183,6 +183,10 @@ public class AdminDatabaseServlet extends HttpServlet {
         Object adminIdObj = request.getSession().getAttribute("userID");
         int adminId = adminIdObj instanceof Integer ? (Integer) adminIdObj : 0;
         boolean privileged = adminITDAO.isPrivilegedAdmin(adminId);
+        if (!privileged) {
+            response.sendRedirect(request.getContextPath() + "/AdminDatabase.do?err=PrivilegedRequired");
+            return;
+        }
 
         String roleFilter = param(request, "roleFilter");
         String campusFilter = param(request, "campusFilter");
@@ -210,6 +214,10 @@ public class AdminDatabaseServlet extends HttpServlet {
         Object adminIdObj = request.getSession().getAttribute("userID");
         int adminId = adminIdObj instanceof Integer ? (Integer) adminIdObj : 0;
         boolean privileged = adminITDAO.isPrivilegedAdmin(adminId);
+        if (!privileged) {
+            response.sendRedirect(request.getContextPath() + "/AdminDatabase.do?err=PrivilegedRequired");
+            return;
+        }
 
         String campusFilter = param(request, "ticketCampusFilter");
         String search = param(request, "ticketSearch");
