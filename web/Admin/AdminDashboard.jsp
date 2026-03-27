@@ -144,6 +144,7 @@
                     <c:when test="${param.msg == 'RootPasswordRotated'}">Root password rotated successfully.</c:when>
                     <c:when test="${param.msg == 'ScanLogsPurged'}">Scan logs purged successfully.</c:when>
                     <c:when test="${param.msg == 'EmailHealthCheckPassed'}">Email health check passed and message sent successfully.</c:when>
+                    <c:when test="${param.msg == 'RetiredEventsDeleted'}">Retired events cleanup completed. Removed ${param.rows} event(s).</c:when>
                     <c:when test="${param.msg == 'ProfileUpdated'}">Your admin profile was updated successfully.</c:when>
                     <c:when test="${param.msg == 'NoChange'}">No changes were applied.</c:when>
                     <c:otherwise>Operation completed successfully.</c:otherwise>
@@ -244,6 +245,9 @@
         <section class="card" style="margin-top:10px;">
             <h3>Event Operations</h3>
             <p style="margin:0 0 8px;color:#5f6f63;">Create, update, and delete events with validation and campus scope checks.</p>
+            <c:if test="${autoRetiredCleanupRows != null && autoRetiredCleanupRows > 0}">
+                <div class="flash ok" style="margin-top:0;">Automatic cleanup removed ${autoRetiredCleanupRows} passed/cancelled event(s).</div>
+            </c:if>
 
             <form action="${pageContext.request.contextPath}/AdminDashboard.do" method="POST" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;align-items:end;">
                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
@@ -273,21 +277,42 @@
                 <div class="field"><button class="btn btn-alt" type="button" onclick="openDeleteEventModal(this.form)">Delete Event</button></div>
             </form>
 
+            <c:if test="${isPrivilegedAdmin}">
+                <form action="${pageContext.request.contextPath}/AdminDashboard.do" method="POST" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:end;margin-top:8px;">
+                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                    <input type="hidden" name="action" value="cleanupRetiredEvents">
+                    <div class="field" style="grid-column:span 2;"><label>Retired Event Cleanup</label><input type="text" value="Deletes passed/cancelled events with no sold tickets and no user references" readonly></div>
+                    <div class="field"><button class="btn" type="submit">Delete Passed/Cancelled Events</button></div>
+                </form>
+            </c:if>
+
             <div class="table-wrap">
+                <div class="actions" style="padding:8px; border-bottom:1px solid #e5ece1;">
+                    <label for="eventStatusQuickFilter" style="color:#5f6f63;font-weight:700;">Quick Filter:</label>
+                    <select id="eventStatusQuickFilter" onchange="applyEventQuickFilter()" style="margin-left:8px; border:1px solid #d8e0d2; border-radius:8px; padding:6px 8px;">
+                        <option value="ALL">All Events</option>
+                        <option value="ACTIVE">Active</option>
+                        <option value="CANCELLED">Cancelled</option>
+                        <option value="PASSED">Passed</option>
+                        <option value="CLEANUP">Cleanup Candidates (Passed/Cancelled)</option>
+                    </select>
+                    <span id="eventQuickFilterSummary" style="margin-left:10px;color:#5f6f63;">Showing all events</span>
+                </div>
                 <table>
-                    <thead><tr><th>Event ID</th><th>Name</th><th>Type</th><th>Date</th><th>Venue ID</th><th>Campus</th></tr></thead>
+                    <thead><tr><th>Event ID</th><th>Name</th><th>Type</th><th>Status</th><th>Date</th><th>Venue ID</th><th>Campus</th></tr></thead>
                     <tbody>
                         <c:forEach var="ev" items="${eventRows}">
-                            <tr>
+                            <tr class="event-row" data-status="${ev.status}" data-date="${ev.date}">
                                 <td>${ev.eventID}</td>
                                 <td>${ev.name}</td>
                                 <td>${ev.type}</td>
+                                <td>${ev.status}</td>
                                 <td>${ev.date}</td>
                                 <td>${ev.venueID}</td>
                                 <td>${ev.campusName}</td>
                             </tr>
                         </c:forEach>
-                        <c:if test="${empty eventRows}"><tr><td colspan="6">No events found for your scope.</td></tr></c:if>
+                        <c:if test="${empty eventRows}"><tr><td colspan="7">No events found for your scope.</td></tr></c:if>
                     </tbody>
                 </table>
             </div>
@@ -296,16 +321,17 @@
                 <div>Showing ${fn:length(eventRows)} of ${eventTotalRows} events | Page ${eventPage} of ${eventTotalPages}</div>
                 <div class="pager-links">
                     <c:if test="${eventPage > 1}">
-                        <a class="btn btn-alt" href="${pageContext.request.contextPath}/AdminDashboard.do?eventPage=${eventPage - 1}&eventPageSize=${eventPageSize}&reconPage=${reconPage}&reconPageSize=${reconPageSize}">Previous</a>
+                        <a class="btn btn-alt" href="${pageContext.request.contextPath}/AdminDashboard.do?eventPage=${eventPage - 1}&eventPageSize=${eventPageSize}&reconPage=${reconPage}&reconPageSize=${reconPageSize}&eventStatusQuickFilter=${param.eventStatusQuickFilter}">Previous</a>
                     </c:if>
                     <c:if test="${eventPage < eventTotalPages}">
-                        <a class="btn btn-alt" href="${pageContext.request.contextPath}/AdminDashboard.do?eventPage=${eventPage + 1}&eventPageSize=${eventPageSize}&reconPage=${reconPage}&reconPageSize=${reconPageSize}">Next</a>
+                        <a class="btn btn-alt" href="${pageContext.request.contextPath}/AdminDashboard.do?eventPage=${eventPage + 1}&eventPageSize=${eventPageSize}&reconPage=${reconPage}&reconPageSize=${reconPageSize}&eventStatusQuickFilter=${param.eventStatusQuickFilter}">Next</a>
                     </c:if>
                 </div>
                 <form class="pager-size" action="${pageContext.request.contextPath}/AdminDashboard.do" method="GET">
                     <input type="hidden" name="eventPage" value="1">
                     <input type="hidden" name="reconPage" value="${reconPage}">
                     <input type="hidden" name="reconPageSize" value="${reconPageSize}">
+                    <input type="hidden" id="eventStatusQuickFilterHidden" name="eventStatusQuickFilter" value="${param.eventStatusQuickFilter}">
                     <label for="eventPageSize">Rows</label>
                     <select id="eventPageSize" name="eventPageSize" onchange="this.form.submit()">
                         <option value="10" <c:if test="${eventPageSize == 10}">selected</c:if>>10</option>
@@ -714,6 +740,73 @@
             el.setCustomValidity(el.value === next.value ? '' : 'Passwords do not match');
         }
 
+        function normalizeEventStatus(status) {
+            var value = (status || '').toString().trim().toUpperCase();
+            return value ? value : 'ACTIVE';
+        }
+
+        function looksPastDate(rawDate) {
+            if (!rawDate) {
+                return false;
+            }
+            var parsed = new Date(rawDate);
+            if (isNaN(parsed.getTime())) {
+                return false;
+            }
+            return parsed.getTime() < Date.now();
+        }
+
+        function applyEventQuickFilter() {
+            var filter = document.getElementById('eventStatusQuickFilter');
+            var summary = document.getElementById('eventQuickFilterSummary');
+            if (!filter) {
+                return;
+            }
+
+            var selected = normalizeEventStatus(filter.value);
+            var params = new URLSearchParams(window.location.search || '');
+            params.set('eventStatusQuickFilter', selected);
+            window.history.replaceState({}, '', window.location.pathname + '?' + params.toString());
+
+            var hidden = document.getElementById('eventStatusQuickFilterHidden');
+            if (hidden) {
+                hidden.value = selected;
+            }
+
+            var rows = document.querySelectorAll('tr.event-row');
+            var visible = 0;
+
+            rows.forEach(function (row) {
+                var status = normalizeEventStatus(row.getAttribute('data-status'));
+                var isPast = looksPastDate(row.getAttribute('data-date'));
+                var retired = status === 'CANCELLED' || status === 'PASSED' || isPast;
+                var show;
+
+                if (selected === 'ALL') {
+                    show = true;
+                } else if (selected === 'CLEANUP') {
+                    show = retired;
+                } else {
+                    show = status === selected;
+                }
+
+                row.style.display = show ? '' : 'none';
+                if (show) {
+                    visible++;
+                }
+            });
+
+            if (summary) {
+                if (selected === 'ALL') {
+                    summary.textContent = 'Showing all events (' + visible + ')';
+                } else if (selected === 'CLEANUP') {
+                    summary.textContent = 'Showing cleanup candidates (' + visible + ')';
+                } else {
+                    summary.textContent = 'Showing ' + selected.toLowerCase() + ' events (' + visible + ')';
+                }
+            }
+        }
+
         function toggleProfileMenu() {
             document.getElementById("profileMenu").classList.toggle("open");
         }
@@ -730,6 +823,19 @@
                 closeDeleteEventModal();
             }
         });
+        (function initEventQuickFilterFromUrl() {
+            var params = new URLSearchParams(window.location.search || '');
+            var fromUrl = normalizeEventStatus(params.get('eventStatusQuickFilter') || 'ALL');
+            var filter = document.getElementById('eventStatusQuickFilter');
+            if (filter) {
+                if (fromUrl === 'CLEANUP' || fromUrl === 'ALL' || fromUrl === 'ACTIVE' || fromUrl === 'CANCELLED' || fromUrl === 'PASSED') {
+                    filter.value = fromUrl;
+                } else {
+                    filter.value = 'ALL';
+                }
+            }
+        })();
+        applyEventQuickFilter();
     </script>
     <script src="${pageContext.request.contextPath}/assets/error-popup.js"></script>
 </body>

@@ -25,6 +25,8 @@ public class AdminDashboardServlet extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         try {
+            applyAutomaticRetiredEventCleanup(request);
+
             String export = param(request, "export");
             if ("identities".equals(export)) {
                 writeIdentityCsv(response, adminITDAO.getIdentityDirectory());
@@ -362,6 +364,12 @@ public class AdminDashboardServlet extends HttpServlet {
                 return;
             }
 
+            if ("cleanupRetiredEvents".equals(action)) {
+                int removed = adminITDAO.cleanupRetiredEvents(adminId);
+                response.sendRedirect(request.getContextPath() + "/AdminDashboard.do?msg=RetiredEventsDeleted&rows=" + removed);
+                return;
+            }
+
             if ("runEmailHealthCheck".equals(action)) {
                 String targetEmail = req(request, "healthCheckEmail").toLowerCase();
                 String context = request.getContextPath();
@@ -575,6 +583,30 @@ public class AdminDashboardServlet extends HttpServlet {
         return parsed;
     }
 
+    private void applyAutomaticRetiredEventCleanup(HttpServletRequest request) {
+        try {
+            Object adminIdObj = request.getSession().getAttribute("userID");
+            int adminId = adminIdObj instanceof Integer ? (Integer) adminIdObj : 0;
+            if (adminId <= 0 || !adminITDAO.isPrivilegedAdmin(adminId)) {
+                return;
+            }
+
+            HttpSession session = request.getSession();
+            long now = System.currentTimeMillis();
+            Object marker = session.getAttribute("autoRetiredCleanupTs");
+            long lastRun = marker instanceof Long ? (Long) marker : 0L;
+            if (now - lastRun < 10L * 60L * 1000L) {
+                return;
+            }
+
+            int removed = adminITDAO.cleanupRetiredEvents(adminId);
+            session.setAttribute("autoRetiredCleanupTs", now);
+            request.setAttribute("autoRetiredCleanupRows", removed);
+        } catch (Exception ex) {
+            log("Automatic retired event cleanup skipped", ex);
+        }
+    }
+
     private boolean isMutationAction(String action) {
         return "createAdmin".equals(action)
                 || "updateMyProfile".equals(action)
@@ -599,6 +631,7 @@ public class AdminDashboardServlet extends HttpServlet {
                 || "safeDeleteRow".equals(action)
                 || "rotateRootPassword".equals(action)
                 || "purgeScanLogs".equals(action)
+                || "cleanupRetiredEvents".equals(action)
                 || "runEmailHealthCheck".equals(action)
                 || "resolveDeleteRequest".equals(action);
     }
@@ -607,6 +640,7 @@ public class AdminDashboardServlet extends HttpServlet {
         return "safeDeleteRow".equals(action)
                 || "rotateRootPassword".equals(action)
                 || "purgeScanLogs".equals(action)
+                || "cleanupRetiredEvents".equals(action)
                 || "runEmailHealthCheck".equals(action)
                 || "resolveDeleteRequest".equals(action);
     }

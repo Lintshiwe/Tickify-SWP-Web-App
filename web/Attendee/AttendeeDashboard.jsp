@@ -1015,7 +1015,7 @@
                     <c:choose>
                         <c:when test="${not empty eventList}">
                             <c:forEach var="event" items="${eventList}">
-                                <article class="event-card searchable-card${event.soldOut ? ' sold-out' : ''}" data-event-id="${event.id}" data-search="${event.name} ${event.type} ${event.venueName} ${event.address} ${event.date}" data-name="${event.name}" data-type="${event.type}" data-price="${event.price}" data-date="${event.date}" data-venue="${event.venueName}" data-address="${event.address}" data-total-tickets="${event.totalTickets}" data-sold-tickets="${event.soldTickets}" data-available-tickets="${event.availableTickets}" data-sold-percentage="${event.soldPercentage}" data-wishlisted="${event.wishlisted}" data-purchased="${event.purchased}" data-album-url="EventAlbumImage.do?eventID=${event.id}">
+                                <article class="event-card searchable-card${event.soldOut ? ' sold-out' : ''}" data-event-id="${event.id}" data-search="${event.name} ${event.type} ${event.venueName} ${event.address} ${event.date} ${event.status} ${event.description}" data-name="${event.name}" data-type="${event.type}" data-price="${event.price}" data-date="${event.date}" data-venue="${event.venueName}" data-address="${event.address}" data-description="${event.description}" data-info-url="${event.infoUrl}" data-status="${event.status}" data-total-tickets="${event.totalTickets}" data-sold-tickets="${event.soldTickets}" data-available-tickets="${event.availableTickets}" data-sold-percentage="${event.soldPercentage}" data-wishlisted="${event.wishlisted}" data-purchased="${event.purchased}" data-album-url="EventAlbumImage.do?eventID=${event.id}">
                                     <div class="ticket-hero">
                                         <img class="ticket-album" src="EventAlbumImage.do?eventID=${event.id}" alt="${event.name} album" onerror="this.style.display='none';">
                                         <div class="ticket-hero-actions">
@@ -1071,7 +1071,7 @@
                     <c:choose>
                         <c:when test="${not empty wishlistEvents}">
                             <c:forEach var="event" items="${wishlistEvents}">
-                                <article class="event-card searchable-card${event.soldOut ? ' sold-out' : ''}" data-event-id="${event.id}" data-search="${event.name} ${event.type} ${event.venueName} ${event.address} ${event.date}" data-name="${event.name}" data-type="${event.type}" data-price="${event.price}" data-date="${event.date}" data-venue="${event.venueName}" data-address="${event.address}" data-total-tickets="${event.totalTickets}" data-sold-tickets="${event.soldTickets}" data-available-tickets="${event.availableTickets}" data-sold-percentage="${event.soldPercentage}" data-wishlisted="true" data-purchased="${event.purchased}" data-album-url="EventAlbumImage.do?eventID=${event.id}">
+                                <article class="event-card searchable-card${event.soldOut ? ' sold-out' : ''}" data-event-id="${event.id}" data-search="${event.name} ${event.type} ${event.venueName} ${event.address} ${event.date} ${event.status} ${event.description}" data-name="${event.name}" data-type="${event.type}" data-price="${event.price}" data-date="${event.date}" data-venue="${event.venueName}" data-address="${event.address}" data-description="${event.description}" data-info-url="${event.infoUrl}" data-status="${event.status}" data-total-tickets="${event.totalTickets}" data-sold-tickets="${event.soldTickets}" data-available-tickets="${event.availableTickets}" data-sold-percentage="${event.soldPercentage}" data-wishlisted="true" data-purchased="${event.purchased}" data-album-url="EventAlbumImage.do?eventID=${event.id}">
                                     <div class="ticket-hero">
                                         <img class="ticket-album" src="EventAlbumImage.do?eventID=${event.id}" alt="${event.name} album" onerror="this.style.display='none';">
                                         <div class="ticket-hero-actions">
@@ -1134,9 +1134,12 @@
                         <div class="preview-detail"><strong>Date</strong><span id="previewEventDate">-</span></div>
                         <div class="preview-detail"><strong>Venue</strong><span id="previewEventVenueName">-</span></div>
                         <div class="preview-detail"><strong>Address</strong><span id="previewEventAddress">-</span></div>
+                        <div class="preview-detail"><strong>Status</strong><span id="previewEventStatus">-</span></div>
                         <div class="preview-detail"><strong>Ticket Price</strong><span id="previewEventPrice">-</span></div>
                         <div class="preview-detail"><strong>Available Tickets</strong><span id="previewEventAvailable">-</span></div>
                     </div>
+                    <div class="preview-detail" style="margin-top:10px;"><strong>Description</strong><span id="previewEventDescription" style="display:block;margin-top:4px;">-</span></div>
+                    <div class="preview-detail" style="margin-top:8px;"><strong>More Info</strong><span id="previewEventInfoUrl">-</span></div>
                     <div class="sold-status" style="margin-top:10px;">
                         <div class="sold-label" id="previewEventSoldLabel">Tickets sold: 0%</div>
                         <div class="sold-track"><div id="previewEventSoldFill" class="sold-fill" style="width:0%;"></div></div>
@@ -1438,6 +1441,9 @@
             var date = card.getAttribute('data-date') || '-';
             var venue = card.getAttribute('data-venue') || '-';
             var address = card.getAttribute('data-address') || '-';
+            var description = card.getAttribute('data-description') || '';
+            var infoUrl = card.getAttribute('data-info-url') || '';
+            var status = card.getAttribute('data-status') || 'ACTIVE';
             var price = card.getAttribute('data-price') || '0';
             var totalTickets = toInt(card.getAttribute('data-total-tickets'));
             var soldTickets = toInt(card.getAttribute('data-sold-tickets'));
@@ -1451,6 +1457,14 @@
             document.getElementById('previewEventDate').textContent = date;
             document.getElementById('previewEventVenueName').textContent = venue;
             document.getElementById('previewEventAddress').textContent = address;
+            document.getElementById('previewEventStatus').textContent = status;
+            document.getElementById('previewEventDescription').textContent = description ? description : 'No description provided yet.';
+            var infoNode = document.getElementById('previewEventInfoUrl');
+            if (infoUrl) {
+                infoNode.innerHTML = '<a href="' + infoUrl + '" target="_blank" rel="noopener noreferrer">Open event info link</a>';
+            } else {
+                infoNode.textContent = 'No external info link available.';
+            }
             document.getElementById('previewEventPrice').textContent = formatPreviewPrice(price);
             applyPreviewStockState(totalTickets, soldTickets);
 

@@ -87,6 +87,7 @@ public class AttendeeDAO {
         List<Map<String, Object>> events = new ArrayList<>();
 
         String sql = "SELECT e.eventID, e.name AS eventName, e.type, e.date, "
+            + "e.description, e.infoUrl, COALESCE(NULLIF(TRIM(e.status), ''), 'ACTIVE') AS status, "
                 + "v.name AS venueName, v.address, "
                 + "MIN(t.price) AS minPrice, "
             + "COUNT(DISTINCT eht.ticketID) AS totalTickets, "
@@ -98,7 +99,7 @@ public class AttendeeDAO {
                 + "LEFT JOIN ticket t ON eht.ticketID = t.ticketID "
                 + "LEFT JOIN attendee_has_ticket aht ON aht.ticketID = eht.ticketID "
                 + "LEFT JOIN attendee_has_event ahe ON ahe.eventID = e.eventID AND ahe.attendeeID = ? "
-                + "GROUP BY e.eventID, e.name, e.type, e.date, v.name, v.address";
+                + "GROUP BY e.eventID, e.name, e.type, e.date, e.description, e.infoUrl, e.status, v.name, v.address";
 
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -115,6 +116,9 @@ public class AttendeeDAO {
                     event.put("name", rs.getString("eventName"));
                     event.put("type", rs.getString("type"));
                     event.put("date", rs.getDate("date"));
+                    event.put("description", rs.getString("description"));
+                    event.put("infoUrl", rs.getString("infoUrl"));
+                    event.put("status", rs.getString("status"));
                     event.put("venueName", rs.getString("venueName"));
                     event.put("address", rs.getString("address"));
                     event.put("price", rs.getDouble("minPrice"));

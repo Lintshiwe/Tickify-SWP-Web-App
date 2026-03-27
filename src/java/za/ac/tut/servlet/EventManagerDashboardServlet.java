@@ -1,6 +1,8 @@
 package za.ac.tut.servlet;
 
 import java.io.IOException;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -12,11 +14,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.servlet.ServletException;
+import javax.servlet.annotation.MultipartConfig;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.Part;
 import za.ac.tut.databaseManagement.EventManagerDashboardDAO;
 
+@MultipartConfig(maxFileSize = 12 * 1024 * 1024)
 public class EventManagerDashboardServlet extends HttpServlet {
 
     private final EventManagerDashboardDAO dao = new EventManagerDashboardDAO();
@@ -81,14 +86,47 @@ public class EventManagerDashboardServlet extends HttpServlet {
                         if ("updateAssignedEvent".equals(action)) {
                                 String eventName = requireText(req(request, "eventName"), 3, 120, "InvalidEventName");
                                 String eventType = requireText(req(request, "eventType"), 2, 80, "InvalidEventType");
+                                String description = optionalText(param(request, "description"), 0, 1200, "InvalidEventDescription");
+                                String infoUrl = optionalUrl(param(request, "infoUrl"), 255, "InvalidEventInfoUrl");
+                                String status = parseEventStatus(param(request, "eventStatus"));
                                 boolean ok = dao.updateAssignedEventDetails(
                                                 eventManagerId,
                                                 parsePositiveInt(req(request, "eventID"), "InvalidEventId"),
                                                 eventName,
                                                 eventType,
-                                                parseDateTimeLocal(req(request, "eventDate"))
+                                                parseDateTimeLocal(req(request, "eventDate")),
+                                                description,
+                                                infoUrl,
+                                                status
                                 );
                                 response.sendRedirect(request.getContextPath() + "/EventManagerDashboard.do?msg=" + (ok ? "EventUpdated" : "NoChange"));
+                                return;
+                        }
+
+                        if ("uploadAssignedEventAlbum".equals(action)) {
+                                int eventId = parsePositiveInt(req(request, "eventID"), "InvalidEventId");
+                                Part imagePart = request.getPart("eventAlbumImage");
+                                if (imagePart == null || imagePart.getSize() == 0) {
+                                        throw new IllegalArgumentException("MissingImage");
+                                }
+                                String contentType = imagePart.getContentType();
+                                if (contentType == null || !contentType.toLowerCase().startsWith("image/")) {
+                                        throw new IllegalArgumentException("InvalidImage");
+                                }
+                                byte[] imageBytes;
+                                try {
+                                        imageBytes = readBytes(imagePart.getInputStream());
+                                } catch (IOException ex) {
+                                        throw new IllegalArgumentException("ImageRead");
+                                }
+                                boolean ok = dao.updateAssignedEventAlbumImage(
+                                                eventManagerId,
+                                                eventId,
+                                                imagePart.getSubmittedFileName(),
+                                                contentType,
+                                                imageBytes
+                                );
+                                response.sendRedirect(request.getContextPath() + "/EventManagerDashboard.do?msg=" + (ok ? "AlbumUploaded" : "NoChange"));
                                 return;
                         }
 
@@ -206,6 +244,40 @@ public class EventManagerDashboardServlet extends HttpServlet {
                 return clean;
         }
 
+        private String optionalText(String value, int min, int max, String errCode) {
+                String clean = value == null ? "" : value.trim();
+                if (clean.isEmpty()) {
+                        return null;
+                }
+                if (clean.length() < min || clean.length() > max) {
+                        throw new IllegalArgumentException(errCode);
+                }
+                return clean;
+        }
+
+        private String optionalUrl(String value, int max, String errCode) {
+                String clean = value == null ? "" : value.trim();
+                if (clean.isEmpty()) {
+                        return null;
+                }
+                if (clean.length() > max) {
+                        throw new IllegalArgumentException(errCode);
+                }
+                String lower = clean.toLowerCase();
+                if (!(lower.startsWith("http://") || lower.startsWith("https://"))) {
+                        throw new IllegalArgumentException(errCode);
+                }
+                return clean;
+        }
+
+        private String parseEventStatus(String value) {
+                String normalized = value == null ? "" : value.trim().toUpperCase();
+                if ("ACTIVE".equals(normalized) || "CANCELLED".equals(normalized) || "PASSED".equals(normalized)) {
+                        return normalized;
+                }
+                throw new IllegalArgumentException("InvalidEventStatus");
+        }
+
         private Timestamp parseDateTimeLocal(String value) {
                 try {
                         LocalDateTime dateTime = LocalDateTime.parse(value.trim(), DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm"));
@@ -213,5 +285,15 @@ public class EventManagerDashboardServlet extends HttpServlet {
                 } catch (DateTimeParseException ex) {
                         throw new IllegalArgumentException("InvalidEventDate");
                 }
+        }
+
+        private byte[] readBytes(InputStream input) throws IOException {
+                ByteArrayOutputStream output = new ByteArrayOutputStream();
+                byte[] buffer = new byte[8192];
+                int read;
+                while ((read = input.read(buffer)) != -1) {
+                        output.write(buffer, 0, read);
+                }
+                return output.toByteArray();
         }
 }

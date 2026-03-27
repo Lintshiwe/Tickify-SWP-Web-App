@@ -59,6 +59,7 @@
             <div class="flash ok">
                 <c:choose>
                     <c:when test="${param.msg == 'EventUpdated'}">Assigned event details updated successfully.</c:when>
+                    <c:when test="${param.msg == 'AlbumUploaded'}">Event album image uploaded successfully.</c:when>
                     <c:when test="${param.msg == 'TierCreated'}">Ticket tier templates were created successfully.</c:when>
                     <c:when test="${param.msg == 'NoChange'}">No changes were applied.</c:when>
                     <c:otherwise>Operation completed successfully.</c:otherwise>
@@ -73,6 +74,12 @@
                     <c:when test="${param.err == 'InvalidEventName'}">Event name must be between 3 and 120 characters.</c:when>
                     <c:when test="${param.err == 'InvalidEventType'}">Event type must be between 2 and 80 characters.</c:when>
                     <c:when test="${param.err == 'InvalidEventDate'}">Please provide a valid event date and time.</c:when>
+                    <c:when test="${param.err == 'InvalidEventDescription'}">Description must be 1200 characters or less.</c:when>
+                    <c:when test="${param.err == 'InvalidEventInfoUrl'}">Info URL must be a valid http/https link.</c:when>
+                    <c:when test="${param.err == 'InvalidEventStatus'}">Event status must be Active, Cancelled, or Passed.</c:when>
+                    <c:when test="${param.err == 'MissingImage'}">Please choose an image file to upload.</c:when>
+                    <c:when test="${param.err == 'InvalidImage'}">Uploaded file must be an image.</c:when>
+                    <c:when test="${param.err == 'ImageRead'}">Could not read the uploaded image file.</c:when>
                     <c:when test="${param.err == 'InvalidTierName'}">Tier name must be between 2 and 80 characters.</c:when>
                     <c:when test="${param.err == 'InvalidTierPrice'}">Tier price must be greater than 0.</c:when>
                     <c:when test="${param.err == 'InvalidTierQuantity'}">Tier quantity must be greater than 0.</c:when>
@@ -95,14 +102,30 @@
                 <p>Live operational view generated from assigned events, guard scans, presenters, and ticket sales.</p>
 
                 <h2 style="margin-top:10px;">Update Assigned Event Details</h2>
-                <form action="${pageContext.request.contextPath}/EventManagerDashboard.do" method="POST" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;align-items:end;">
+                <form action="${pageContext.request.contextPath}/EventManagerDashboard.do" method="POST" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;align-items:end;">
                     <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                     <input type="hidden" name="action" value="updateAssignedEvent">
                     <input type="number" name="eventID" min="1" placeholder="Event ID" required>
                     <input type="text" name="eventName" placeholder="Event Name" required>
                     <input type="text" name="eventType" placeholder="Event Type" required>
                     <input type="datetime-local" name="eventDate" required>
+                    <input type="url" name="infoUrl" placeholder="Info URL (https://...)" style="grid-column:span 2;">
+                    <select name="eventStatus" required>
+                        <option value="ACTIVE">Active</option>
+                        <option value="CANCELLED">Cancelled</option>
+                        <option value="PASSED">Passed</option>
+                    </select>
+                    <textarea name="description" rows="2" maxlength="1200" placeholder="Event description, agenda, notes..." style="grid-column:span 3;resize:vertical;border:1px solid #d8e5d5;border-radius:10px;padding:8px 10px;font:inherit;"></textarea>
                     <button class="btn-primary" type="submit">Update Event</button>
+                </form>
+
+                <h2 style="margin-top:10px;">Upload Event Album Image</h2>
+                <form action="${pageContext.request.contextPath}/EventManagerDashboard.do" method="POST" enctype="multipart/form-data" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;align-items:end;">
+                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                    <input type="hidden" name="action" value="uploadAssignedEventAlbum">
+                    <input type="number" name="eventID" min="1" placeholder="Event ID" required>
+                    <input type="file" name="eventAlbumImage" accept="image/*" required style="grid-column:span 2;">
+                    <button class="btn-primary" type="submit">Upload Album</button>
                 </form>
 
                 <h2 style="margin-top:10px;">Create Ticket Tier</h2>
@@ -159,8 +182,10 @@
                             <tr>
                                 <th>Event</th>
                                 <th>Type</th>
+                                <th>Status</th>
                                 <th>Date</th>
                                 <th>Campus</th>
+                                <th>Description</th>
                                 <th>Ticket Templates</th>
                                 <th>Sold Tickets</th>
                                 <th>Revenue</th>
@@ -171,14 +196,16 @@
                                 <tr class="data-row">
                                     <td>${ev.eventName}</td>
                                     <td>${ev.eventType}</td>
+                                    <td>${ev.status}</td>
                                     <td>${ev.eventDate}</td>
                                     <td>${ev.campusName}</td>
+                                    <td><c:out value="${ev.description}" default="-"/></td>
                                     <td>${ev.ticketTemplates}</td>
                                     <td>${ev.soldTickets}</td>
                                     <td>R <fmt:formatNumber value="${ev.revenue}" minFractionDigits="2" maxFractionDigits="2"/></td>
                                 </tr>
                             </c:forEach>
-                            <c:if test="${empty assignedEvents}"><tr class="no-data-row"><td colspan="7">No assigned events found.</td></tr></c:if>
+                            <c:if test="${empty assignedEvents}"><tr class="no-data-row"><td colspan="9">No assigned events found.</td></tr></c:if>
                         </tbody>
                     </table>
                 </div>

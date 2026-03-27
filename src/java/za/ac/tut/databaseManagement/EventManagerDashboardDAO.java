@@ -30,6 +30,7 @@ public class EventManagerDashboardDAO {
 
     public List<Map<String, Object>> getAssignedEvents(int eventManagerId) throws SQLException {
         String sql = "SELECT e.eventID, e.name AS eventName, e.type AS eventType, e.date AS eventDate, "
+            + "e.description, e.infoUrl, COALESCE(NULLIF(TRIM(e.status), ''), 'ACTIVE') AS status, "
                 + "v.name AS campusName, "
                 + "COUNT(DISTINCT eht.ticketID) AS ticketTemplates, "
                 + "COUNT(aht.attendeeID) AS soldTickets, "
@@ -41,7 +42,7 @@ public class EventManagerDashboardDAO {
                 + "LEFT JOIN attendee_has_ticket aht ON aht.ticketID = eht.ticketID "
                 + "LEFT JOIN ticket t ON t.ticketID = aht.ticketID "
                 + "WHERE ehm.eventManagerID = ? "
-                + "GROUP BY e.eventID, e.name, e.type, e.date, v.name "
+                + "GROUP BY e.eventID, e.name, e.type, e.date, e.description, e.infoUrl, e.status, v.name "
                 + "ORDER BY e.date ASC";
         return runListQuery(sql, eventManagerId);
     }
@@ -136,14 +137,14 @@ public class EventManagerDashboardDAO {
     }
 
     public boolean updateAssignedEventDetails(int eventManagerId, int eventId, String eventName,
-            String eventType, Timestamp eventDate) throws SQLException {
+            String eventType, Timestamp eventDate, String description, String infoUrl, String status) throws SQLException {
         if (eventManagerId <= 0 || eventId <= 0 || eventDate == null
                 || eventName == null || eventName.trim().isEmpty()
                 || eventType == null || eventType.trim().isEmpty()) {
             return false;
         }
 
-        String sql = "UPDATE event SET name = ?, type = ?, date = ? "
+        String sql = "UPDATE event SET name = ?, type = ?, date = ?, description = ?, infoUrl = ?, status = ? "
                 + "WHERE eventID = ? AND EXISTS ("
                 + "SELECT 1 FROM event_has_manager ehm WHERE ehm.eventID = event.eventID AND ehm.eventManagerID = ?)";
         try (Connection conn = DatabaseConnection.getConnection();
@@ -151,6 +152,28 @@ public class EventManagerDashboardDAO {
             ps.setString(1, eventName.trim());
             ps.setString(2, eventType.trim());
             ps.setTimestamp(3, eventDate);
+            ps.setString(4, description);
+            ps.setString(5, infoUrl);
+            ps.setString(6, status);
+            ps.setInt(7, eventId);
+            ps.setInt(8, eventManagerId);
+            return ps.executeUpdate() > 0;
+        }
+    }
+
+    public boolean updateAssignedEventAlbumImage(int eventManagerId, int eventId, String filename,
+            String mimeType, byte[] imageData) throws SQLException {
+        if (eventManagerId <= 0 || eventId <= 0 || imageData == null || imageData.length == 0) {
+            return false;
+        }
+        String sql = "UPDATE event SET imageFilename = ?, imageMimeType = ?, imageData = ? "
+                + "WHERE eventID = ? AND EXISTS ("
+                + "SELECT 1 FROM event_has_manager ehm WHERE ehm.eventID = event.eventID AND ehm.eventManagerID = ?)";
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, filename);
+            ps.setString(2, mimeType);
+            ps.setBytes(3, imageData);
             ps.setInt(4, eventId);
             ps.setInt(5, eventManagerId);
             return ps.executeUpdate() > 0;

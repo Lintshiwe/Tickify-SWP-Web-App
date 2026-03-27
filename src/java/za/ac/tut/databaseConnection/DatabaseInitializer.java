@@ -20,6 +20,7 @@ public class DatabaseInitializer {
     public static void initialize() {
         try (Connection conn = DatabaseConnection.getConnection()) {
             createTables(conn);
+            ensureEventMetadataColumns(conn);
             ensureClientProfileColumns(conn);
             ensureUniqueClientUsernameIndexes(conn);
             ensureRootPasswordConfig(conn);
@@ -59,6 +60,9 @@ public class DatabaseInitializer {
                 "  type     VARCHAR(45)," +
                 "  date     TIMESTAMP," +
                 "  venueID  INT NOT NULL," +
+                "  description VARCHAR(1200)," +
+                "  infoUrl VARCHAR(255)," +
+                "  status VARCHAR(20) DEFAULT 'ACTIVE'," +
                 "  imageFilename VARCHAR(255)," +
                 "  imageMimeType VARCHAR(100)," +
                 "  imageData BLOB," +
@@ -756,6 +760,25 @@ public class DatabaseInitializer {
             if (!columnExists(conn, "EVENT", "IMAGEDATA")) {
                 st.execute("ALTER TABLE event ADD COLUMN imageData BLOB");
             }
+        }
+    }
+
+    private static void ensureEventMetadataColumns(Connection conn) throws SQLException {
+        if (!tableExists(conn, "EVENT")) {
+            return;
+        }
+
+        try (Statement st = conn.createStatement()) {
+            if (!columnExists(conn, "EVENT", "DESCRIPTION")) {
+                st.execute("ALTER TABLE event ADD COLUMN description VARCHAR(1200)");
+            }
+            if (!columnExists(conn, "EVENT", "INFOURL")) {
+                st.execute("ALTER TABLE event ADD COLUMN infoUrl VARCHAR(255)");
+            }
+            if (!columnExists(conn, "EVENT", "STATUS")) {
+                st.execute("ALTER TABLE event ADD COLUMN status VARCHAR(20)");
+            }
+            st.executeUpdate("UPDATE event SET status = 'ACTIVE' WHERE status IS NULL OR TRIM(status) = ''");
         }
     }
 

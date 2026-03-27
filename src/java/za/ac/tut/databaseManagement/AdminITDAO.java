@@ -219,7 +219,7 @@ public class AdminITDAO {
         int safePageSize = pageSize <= 0 ? 10 : pageSize;
         int offset = (safePage - 1) * safePageSize;
         if (isPrivilegedAdmin(adminId)) {
-            return runListQuery("SELECT e.eventID, e.name, e.type, e.date, e.venueID, v.name AS campusName, v.address AS campusAddress "
+            return runListQuery("SELECT e.eventID, e.name, e.type, e.date, COALESCE(NULLIF(TRIM(e.status), ''), 'ACTIVE') AS status, e.venueID, v.name AS campusName, v.address AS campusAddress "
                     + "FROM event e LEFT JOIN venue v ON v.venueID = e.venueID "
                     + "ORDER BY e.date DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY",
                     Arrays.<Object>asList(offset, safePageSize));
@@ -228,7 +228,7 @@ public class AdminITDAO {
         if (campusVenueId == null || campusVenueId <= 0) {
             return new ArrayList<>();
         }
-        return runListQuery("SELECT e.eventID, e.name, e.type, e.date, e.venueID, v.name AS campusName, v.address AS campusAddress "
+        return runListQuery("SELECT e.eventID, e.name, e.type, e.date, COALESCE(NULLIF(TRIM(e.status), ''), 'ACTIVE') AS status, e.venueID, v.name AS campusName, v.address AS campusAddress "
                 + "FROM event e LEFT JOIN venue v ON v.venueID = e.venueID "
                 + "WHERE e.venueID = ? ORDER BY e.date DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY",
                 Arrays.<Object>asList(campusVenueId, offset, safePageSize));
@@ -343,6 +343,154 @@ public class AdminITDAO {
             }
             return false;
         }
+    }
+
+    public int cleanupRetiredEvents(int adminId) throws SQLException {
+        if (!isPrivilegedAdmin(adminId)) {
+            throw new SQLException("PrivilegedRequired");
+        }
+
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                List<Integer> candidateIds = new ArrayList<>();
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "SELECT eventID FROM event "
+                        + "WHERE date < CURRENT_TIMESTAMP OR UPPER(COALESCE(status,'')) IN ('CANCELLED','PASSED')")) {
+                    try (ResultSet rs = ps.executeQuery()) {
+                        while (rs.next()) {
+                            candidateIds.add(rs.getInt(1));
+                        }
+                    }
+                }
+
+                int deleted = 0;
+                for (Integer eventId : candidateIds) {
+                    if (eventId == null || eventId <= 0) {
+                        continue;
+                    }
+                    if (!isRetiredEventDeletable(conn, eventId)) {
+                        continue;
+                    }
+                    if (deleteEventGraph(conn, adminId, eventId)) {
+                        deleted++;
+                    }
+                }
+
+                conn.commit();
+                return deleted;
+            } catch (SQLException ex) {
+                conn.rollback();
+                throw ex;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        }
+    }
+
+    private boolean isRetiredEventDeletable(Connection conn, int eventId) throws SQLException {
+        int sold;
+        try (PreparedStatement soldPs = conn.prepareStatement(
+                "SELECT COUNT(*) FROM attendee_has_ticket aht "
+                + "JOIN event_has_ticket eht ON eht.ticketID = aht.ticketID "
+                + "WHERE eht.eventID = ?")) {
+            soldPs.setInt(1, eventId);
+            try (ResultSet rs = soldPs.executeQuery()) {
+                sold = rs.next() ? rs.getInt(1) : 0;
+            }
+        }
+        if (sold > 0) {
+            return false;
+        }
+
+        if (hasReferences(conn, "admin", "eventID", eventId)) {
+            return false;
+        }
+        if (hasReferences(conn, "venue_guard", "eventID", eventId)) {
+            return false;
+        }
+        if (hasReferences(conn, "tertiary_presenter", "eventID", eventId)) {
+            return false;
+        }
+        return true;
+    }
+
+    private boolean hasReferences(Connection conn, String table, String column, int id) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT COUNT(*) FROM " + table + " WHERE " + column + " = ?")) {
+            ps.setInt(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() && rs.getInt(1) > 0;
+            }
+        }
+    }
+
+    private boolean deleteEventGraph(Connection conn, int adminId, int eventId) throws SQLException {
+        List<Integer> ticketIds = new ArrayList<>();
+        List<Integer> qrIds = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT t.ticketID, t.QRcodeID "
+                + "FROM event_has_ticket eht "
+                + "JOIN ticket t ON t.ticketID = eht.ticketID "
+                + "WHERE eht.eventID = ?")) {
+            ps.setInt(1, eventId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    ticketIds.add(rs.getInt("ticketID"));
+                    qrIds.add(rs.getInt("QRcodeID"));
+                }
+            }
+        }
+
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM attendee_wishlist WHERE eventID = ?")) {
+            ps.setInt(1, eventId);
+            ps.executeUpdate();
+        }
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM attendee_has_event WHERE eventID = ?")) {
+            ps.setInt(1, eventId);
+            ps.executeUpdate();
+        }
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM event_has_manager WHERE eventID = ?")) {
+            ps.setInt(1, eventId);
+            ps.executeUpdate();
+        }
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM event_has_ticket WHERE eventID = ?")) {
+            ps.setInt(1, eventId);
+            ps.executeUpdate();
+        }
+
+        for (Integer ticketId : ticketIds) {
+            if (ticketId == null || ticketId <= 0) {
+                continue;
+            }
+            try (PreparedStatement ps = conn.prepareStatement("DELETE FROM eventmanager_has_ticket WHERE ticketID = ?")) {
+                ps.setInt(1, ticketId);
+                ps.executeUpdate();
+            }
+            try (PreparedStatement ps = conn.prepareStatement("DELETE FROM ticket WHERE ticketID = ?")) {
+                ps.setInt(1, ticketId);
+                ps.executeUpdate();
+            }
+        }
+
+        for (Integer qrId : qrIds) {
+            if (qrId == null || qrId <= 0) {
+                continue;
+            }
+            try (PreparedStatement ps = conn.prepareStatement("DELETE FROM qrcode WHERE QRcodeID = ?")) {
+                ps.setInt(1, qrId);
+                ps.executeUpdate();
+            }
+        }
+
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM event WHERE eventID = ?")) {
+            ps.setInt(1, eventId);
+            int affected = ps.executeUpdate();
+            if (affected > 0) {
+                logAudit(conn, adminId, "CLEANUP_EVENT", "event", String.valueOf(eventId), "Auto/manual cleanup deleted retired event");
+                return true;
+            }
+        }
+        return false;
     }
 
     public List<Map<String, Object>> getVenueOptions() throws SQLException {
