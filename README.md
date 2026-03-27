@@ -59,6 +59,21 @@ The datastore layer supports:
 
 On first launch, the server seeds default administrator and security accounts to simplify initial setup.
 
+## Database Credentials (Required)
+
+Tickify now requires explicit database credentials. No default database password is used.
+
+Set either JVM properties or environment variables before starting the app:
+
+- JVM properties: `-Dtickify.db.user=... -Dtickify.db.password=...`
+- Environment variables: `TICKIFY_DB_USER` and `TICKIFY_DB_PASSWORD`
+
+Optional connection settings (if not provided):
+
+- `TICKIFY_DB_HOST` (default: `localhost`)
+- `TICKIFY_DB_PORT` (default: `1527`)
+- `TICKIFY_DB_NAME` (default: `tickifyDB`)
+
 ## Project Context
 
 This repository contains the Java EE implementation for the web platform, including servlets, DAO classes, entities, and JSP-based views for the different user roles.
