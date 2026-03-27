@@ -180,6 +180,132 @@ public class AdminITDAO {
                 Arrays.<Object>asList(getAdminCampusVenueId(adminId)));
     }
 
+    public List<Map<String, Object>> getEventControlRowsForScope(int adminId) throws SQLException {
+        if (isPrivilegedAdmin(adminId)) {
+            return runListQuery("SELECT e.eventID, e.name, e.type, e.date, e.venueID, v.name AS campusName, v.address AS campusAddress "
+                    + "FROM event e LEFT JOIN venue v ON v.venueID = e.venueID "
+                    + "ORDER BY e.date DESC", Collections.emptyList());
+        }
+        Integer campusVenueId = getAdminCampusVenueId(adminId);
+        if (campusVenueId == null || campusVenueId <= 0) {
+            return new ArrayList<>();
+        }
+        return runListQuery("SELECT e.eventID, e.name, e.type, e.date, e.venueID, v.name AS campusName, v.address AS campusAddress "
+                + "FROM event e LEFT JOIN venue v ON v.venueID = e.venueID "
+                + "WHERE e.venueID = ? ORDER BY e.date DESC", Arrays.<Object>asList(campusVenueId));
+    }
+
+    public boolean createEvent(int adminId, String name, String type, Timestamp eventDate, int venueId) throws SQLException {
+        if (name == null || name.trim().isEmpty() || type == null || type.trim().isEmpty() || eventDate == null || venueId <= 0) {
+            throw new SQLException("MissingFields");
+        }
+
+        if (!hasCampusAccessForRoleMutation(adminId, "VENUE_GUARD", null, null, venueId, null)) {
+            throw new SQLException("CampusScopeDenied");
+        }
+
+        if (!existsById(venueId, "venue", "venueID")) {
+            throw new SQLException("InvalidAssignment");
+        }
+
+        String sql = "INSERT INTO event(name, type, date, venueID) VALUES(?,?,?,?)";
+        try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            ps.setString(1, name.trim());
+            ps.setString(2, type.trim());
+            ps.setTimestamp(3, eventDate);
+            ps.setInt(4, venueId);
+            int affected = ps.executeUpdate();
+            if (affected <= 0) {
+                return false;
+            }
+            int newEventId = 0;
+            try (ResultSet keys = ps.getGeneratedKeys()) {
+                if (keys.next()) {
+                    newEventId = keys.getInt(1);
+                }
+            }
+            logAudit(conn, adminId, "CREATE_EVENT", "event", String.valueOf(newEventId), "Created event '" + name.trim() + "'");
+            return true;
+        }
+    }
+
+    public boolean updateEvent(int adminId, int eventId, String name, String type, Timestamp eventDate, int venueId) throws SQLException {
+        if (eventId <= 0 || name == null || name.trim().isEmpty() || type == null || type.trim().isEmpty() || eventDate == null || venueId <= 0) {
+            throw new SQLException("MissingFields");
+        }
+
+        if (!hasCampusAccessForRoleMutation(adminId, "ADMIN", null, eventId, null, null)
+                || !hasCampusAccessForRoleMutation(adminId, "VENUE_GUARD", null, null, venueId, null)) {
+            throw new SQLException("CampusScopeDenied");
+        }
+
+        if (!existsById(venueId, "venue", "venueID")) {
+            throw new SQLException("InvalidAssignment");
+        }
+
+        String sql = "UPDATE event SET name=?, type=?, date=?, venueID=? WHERE eventID=?";
+        try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, name.trim());
+            ps.setString(2, type.trim());
+            ps.setTimestamp(3, eventDate);
+            ps.setInt(4, venueId);
+            ps.setInt(5, eventId);
+            int affected = ps.executeUpdate();
+            if (affected > 0) {
+                logAudit(conn, adminId, "UPDATE_EVENT", "event", String.valueOf(eventId), "Updated event fields");
+                return true;
+            }
+            return false;
+        }
+    }
+
+    public boolean deleteEvent(int adminId, int eventId) throws SQLException {
+        if (eventId <= 0) {
+            throw new SQLException("MissingFields");
+        }
+        if (!hasCampusAccessForRoleMutation(adminId, "ADMIN", null, eventId, null, null)) {
+            throw new SQLException("CampusScopeDenied");
+        }
+
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            int sold = 0;
+            try (PreparedStatement soldPs = conn.prepareStatement(
+                    "SELECT COUNT(*) FROM attendee_has_ticket aht "
+                    + "JOIN event_has_ticket eht ON eht.ticketID = aht.ticketID "
+                    + "WHERE eht.eventID = ?")) {
+                soldPs.setInt(1, eventId);
+                try (ResultSet rs = soldPs.executeQuery()) {
+                    if (rs.next()) {
+                        sold = rs.getInt(1);
+                    }
+                }
+            }
+
+            if (sold > 0) {
+                throw new SQLException("EventHasSales");
+            }
+
+            try (PreparedStatement detachManagers = conn.prepareStatement("DELETE FROM event_has_manager WHERE eventID = ?")) {
+                detachManagers.setInt(1, eventId);
+                detachManagers.executeUpdate();
+            }
+            try (PreparedStatement detachTickets = conn.prepareStatement("DELETE FROM event_has_ticket WHERE eventID = ?")) {
+                detachTickets.setInt(1, eventId);
+                detachTickets.executeUpdate();
+            }
+
+            try (PreparedStatement ps = conn.prepareStatement("DELETE FROM event WHERE eventID = ?")) {
+                ps.setInt(1, eventId);
+                int affected = ps.executeUpdate();
+                if (affected > 0) {
+                    logAudit(conn, adminId, "DELETE_EVENT", "event", String.valueOf(eventId), "Deleted event");
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
     public List<Map<String, Object>> getVenueOptions() throws SQLException {
         return runListQuery("SELECT venueID, name FROM venue ORDER BY name ASC", Collections.emptyList());
     }
@@ -984,6 +1110,52 @@ public class AdminITDAO {
                 + "GROUP BY v.venueID, v.name, v.address "
                 + "ORDER BY revenue DESC, ticketsSold DESC";
         return runListQuery(sql, Arrays.<Object>asList(campusVenueId));
+    }
+
+    public List<Map<String, Object>> getFinancialReconciliationForScope(int adminId) throws SQLException {
+        boolean privileged = isPrivilegedAdmin(adminId);
+        Integer campusVenueId = getAdminCampusVenueId(adminId);
+        if (!privileged && (campusVenueId == null || campusVenueId <= 0)) {
+            return new ArrayList<>();
+        }
+
+        StringBuilder sql = new StringBuilder(
+                "SELECT v.venueID, v.name AS campusName, "
+                + "COUNT(DISTINCT aht.ticketID) AS soldTickets, "
+                + "COALESCE(SUM(t.price), 0) AS recordedRevenue, "
+                + "COALESCE((SELECT COUNT(DISTINCT s.ticketID) FROM scan_log s "
+                + "JOIN event_has_ticket eht2 ON eht2.ticketID = s.ticketID "
+                + "JOIN event e2 ON e2.eventID = eht2.eventID "
+                + "WHERE s.result = 'VALID' AND e2.venueID = v.venueID), 0) AS validatedTickets, "
+                + "COALESCE((SELECT SUM(t2.price) FROM scan_log s2 "
+                + "JOIN ticket t2 ON t2.ticketID = s2.ticketID "
+                + "JOIN event_has_ticket eht3 ON eht3.ticketID = s2.ticketID "
+                + "JOIN event e3 ON e3.eventID = eht3.eventID "
+                + "WHERE s2.result = 'VALID' AND e3.venueID = v.venueID), 0) AS validatedRevenue "
+                + "FROM venue v "
+                + "LEFT JOIN event e ON e.venueID = v.venueID "
+                + "LEFT JOIN event_has_ticket eht ON eht.eventID = e.eventID "
+                + "LEFT JOIN attendee_has_ticket aht ON aht.ticketID = eht.ticketID "
+                + "LEFT JOIN ticket t ON t.ticketID = aht.ticketID "
+                + "WHERE 1=1");
+        List<Object> params = new ArrayList<>();
+        if (!privileged) {
+            sql.append(" AND v.venueID = ?");
+            params.add(campusVenueId);
+        }
+        sql.append(" GROUP BY v.venueID, v.name ORDER BY v.name ASC");
+
+        List<Map<String, Object>> rows = runListQuery(sql.toString(), params);
+        for (Map<String, Object> row : rows) {
+            int sold = toInt(row.get("soldTickets"));
+            int validated = toInt(row.get("validatedTickets"));
+            double recorded = toDouble(row.get("recordedRevenue"));
+            double validatedRevenue = toDouble(row.get("validatedRevenue"));
+            row.put("ticketDelta", sold - validated);
+            row.put("revenueDelta", round2(recorded - validatedRevenue));
+            row.put("status", (sold - validated == 0 && Math.abs(recorded - validatedRevenue) < 0.01) ? "BALANCED" : "REVIEW_REQUIRED");
+        }
+        return rows;
     }
 
     public List<Map<String, Object>> getCampusOwnershipReport() throws SQLException {
@@ -1936,6 +2108,24 @@ public class AdminITDAO {
                 return rs.next();
             }
         }
+    }
+
+    private boolean existsById(int id, String table, String column) throws SQLException {
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            return existsById(conn, table, column, id);
+        }
+    }
+
+    private int toInt(Object value) {
+        return value instanceof Number ? ((Number) value).intValue() : 0;
+    }
+
+    private double toDouble(Object value) {
+        return value instanceof Number ? ((Number) value).doubleValue() : 0.0;
+    }
+
+    private double round2(double value) {
+        return Math.round(value * 100.0) / 100.0;
     }
 
     private List<Map<String, Object>> runListQuery(String sql, List<Object> params) throws SQLException {

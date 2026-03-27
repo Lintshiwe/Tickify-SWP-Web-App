@@ -3,6 +3,9 @@ package za.ac.tut.servlet;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import javax.servlet.ServletException;
@@ -26,6 +29,14 @@ public class AdminDashboardServlet extends HttpServlet {
             }
             if ("faults".equals(export)) {
                 writeFaultCsv(response, adminITDAO.getFaultSignals());
+                return;
+            }
+            if ("finance".equals(export)) {
+                writeFinanceCsv(request, response);
+                return;
+            }
+            if ("reconciliation".equals(export)) {
+                writeReconciliationCsv(request, response);
                 return;
             }
 
@@ -78,6 +89,20 @@ public class AdminDashboardServlet extends HttpServlet {
                 return;
             }
 
+            if ("provisionGuard".equals(action)) {
+                adminITDAO.createGuard(
+                        adminId,
+                        req(request, "firstName"),
+                        req(request, "lastName"),
+                        req(request, "email").toLowerCase(),
+                        req(request, "password"),
+                        parseInt(req(request, "eventID")),
+                        parseInt(req(request, "venueID"))
+                );
+                redirectWithMsg(request, response, "GuardProvisioned");
+                return;
+            }
+
             if ("createManager".equals(action)) {
                 adminITDAO.createManager(
                         adminId,
@@ -88,6 +113,52 @@ public class AdminDashboardServlet extends HttpServlet {
                         parseInt(req(request, "venueGuardID"))
                 );
                 redirectWithMsg(request, response, "UserCreated");
+                return;
+            }
+
+            if ("provisionManager".equals(action)) {
+                adminITDAO.createManager(
+                        adminId,
+                        req(request, "firstName"),
+                        req(request, "lastName"),
+                        req(request, "email").toLowerCase(),
+                        req(request, "password"),
+                        parseInt(req(request, "venueGuardID"))
+                );
+                redirectWithMsg(request, response, "ManagerProvisioned");
+                return;
+            }
+
+            if ("createEvent".equals(action)) {
+                Timestamp eventTs = parseDateTimeLocal(req(request, "eventDate"));
+                boolean ok = adminITDAO.createEvent(
+                        adminId,
+                        req(request, "eventName"),
+                        req(request, "eventType"),
+                        eventTs,
+                        parseInt(req(request, "venueID"))
+                );
+                redirectWithMsg(request, response, ok ? "EventCreated" : "NoChange");
+                return;
+            }
+
+            if ("updateEvent".equals(action)) {
+                Timestamp eventTs = parseDateTimeLocal(req(request, "eventDate"));
+                boolean ok = adminITDAO.updateEvent(
+                        adminId,
+                        parseInt(req(request, "eventID")),
+                        req(request, "eventName"),
+                        req(request, "eventType"),
+                        eventTs,
+                        parseInt(req(request, "venueID"))
+                );
+                redirectWithMsg(request, response, ok ? "EventUpdated" : "NoChange");
+                return;
+            }
+
+            if ("deleteEvent".equals(action)) {
+                boolean ok = adminITDAO.deleteEvent(adminId, parseInt(req(request, "eventID")));
+                redirectWithMsg(request, response, ok ? "EventDeleted" : "NoChange");
                 return;
             }
 
@@ -220,12 +291,20 @@ public class AdminDashboardServlet extends HttpServlet {
             redirectWithErr(request, response, "MissingFields");
         } catch (SQLException ex) {
             log("Admin operation failed", ex);
+            if (ex.getMessage() != null && ex.getMessage().contains("MissingFields")) {
+                redirectWithErr(request, response, "MissingFields");
+                return;
+            }
             if (ex.getMessage() != null && ex.getMessage().contains("CampusScopeDenied")) {
                 redirectWithErr(request, response, "CampusScopeDenied");
                 return;
             }
             if (ex.getMessage() != null && ex.getMessage().contains("PrivilegedRequired")) {
                 redirectWithErr(request, response, "PrivilegedRequired");
+                return;
+            }
+            if (ex.getMessage() != null && ex.getMessage().contains("EventHasSales")) {
+                redirectWithErr(request, response, "EventHasSales");
                 return;
             }
             if (ex.getMessage() != null && ex.getMessage().toLowerCase().contains("invalid")) {
@@ -269,6 +348,8 @@ public class AdminDashboardServlet extends HttpServlet {
         request.setAttribute("ticketIntelligence", adminITDAO.getTicketIntelligenceForScope(adminId));
         request.setAttribute("campusRevenue", adminITDAO.getCampusRevenueReportForScope(adminId));
         request.setAttribute("campusOwnership", adminITDAO.getCampusOwnershipReportForScope(adminId));
+        request.setAttribute("reconciliation", adminITDAO.getFinancialReconciliationForScope(adminId));
+        request.setAttribute("eventRows", adminITDAO.getEventControlRowsForScope(adminId));
 
         request.setAttribute("previewTable", preview.get("table"));
         request.setAttribute("previewColumns", preview.get("columns"));
@@ -339,8 +420,13 @@ public class AdminDashboardServlet extends HttpServlet {
     private boolean isMutationAction(String action) {
         return "createAdmin".equals(action)
                 || "createGuard".equals(action)
+                || "provisionGuard".equals(action)
                 || "createManager".equals(action)
+                || "provisionManager".equals(action)
                 || "createPresenter".equals(action)
+                || "createEvent".equals(action)
+                || "updateEvent".equals(action)
+                || "deleteEvent".equals(action)
                 || "deleteUser".equals(action)
                 || "updateUser".equals(action)
                 || "lockUser".equals(action)
@@ -366,5 +452,56 @@ public class AdminDashboardServlet extends HttpServlet {
 
     private void redirectWithErr(HttpServletRequest request, HttpServletResponse response, String err) throws IOException {
         response.sendRedirect(request.getContextPath() + "/AdminDashboard.do?err=" + err);
+    }
+
+    private Timestamp parseDateTimeLocal(String value) {
+        try {
+            LocalDateTime dateTime = LocalDateTime.parse(value.trim(), DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm"));
+            return Timestamp.valueOf(dateTime);
+        } catch (RuntimeException ex) {
+            throw new IllegalArgumentException("Invalid event date/time");
+        }
+    }
+
+    private void writeFinanceCsv(HttpServletRequest request, HttpServletResponse response) throws SQLException, IOException {
+        Object adminIdObj = request.getSession().getAttribute("userID");
+        int adminId = adminIdObj instanceof Integer ? (Integer) adminIdObj : 0;
+        List<Map<String, Object>> rows = adminITDAO.getCampusRevenueReportForScope(adminId);
+
+        response.setContentType("text/csv;charset=UTF-8");
+        response.setHeader("Content-Disposition", "attachment; filename=campus-revenue-report.csv");
+        try (PrintWriter writer = response.getWriter()) {
+            writer.write("\uFEFF");
+            writer.println("campusName,campusAddress,ticketsSold,revenue");
+            for (Map<String, Object> row : rows) {
+                writer.println(csv(row.get("campusName")) + ","
+                        + csv(row.get("campusAddress")) + ","
+                        + csv(row.get("ticketsSold")) + ","
+                        + csv(row.get("revenue")));
+            }
+        }
+    }
+
+    private void writeReconciliationCsv(HttpServletRequest request, HttpServletResponse response) throws SQLException, IOException {
+        Object adminIdObj = request.getSession().getAttribute("userID");
+        int adminId = adminIdObj instanceof Integer ? (Integer) adminIdObj : 0;
+        List<Map<String, Object>> rows = adminITDAO.getFinancialReconciliationForScope(adminId);
+
+        response.setContentType("text/csv;charset=UTF-8");
+        response.setHeader("Content-Disposition", "attachment; filename=financial-reconciliation.csv");
+        try (PrintWriter writer = response.getWriter()) {
+            writer.write("\uFEFF");
+            writer.println("campusName,soldTickets,validatedTickets,ticketDelta,recordedRevenue,validatedRevenue,revenueDelta,status");
+            for (Map<String, Object> row : rows) {
+                writer.println(csv(row.get("campusName")) + ","
+                        + csv(row.get("soldTickets")) + ","
+                        + csv(row.get("validatedTickets")) + ","
+                        + csv(row.get("ticketDelta")) + ","
+                        + csv(row.get("recordedRevenue")) + ","
+                        + csv(row.get("validatedRevenue")) + ","
+                        + csv(row.get("revenueDelta")) + ","
+                        + csv(row.get("status")));
+            }
+        }
     }
 }

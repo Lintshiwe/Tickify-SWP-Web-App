@@ -106,6 +106,11 @@
             <div class="flash ok">
                 <c:choose>
                     <c:when test="${param.msg == 'UserCreated'}">User account created successfully.</c:when>
+                    <c:when test="${param.msg == 'GuardProvisioned'}">Venue guard provisioned successfully.</c:when>
+                    <c:when test="${param.msg == 'ManagerProvisioned'}">Event manager provisioned successfully.</c:when>
+                    <c:when test="${param.msg == 'EventCreated'}">Event created successfully.</c:when>
+                    <c:when test="${param.msg == 'EventUpdated'}">Event updated successfully.</c:when>
+                    <c:when test="${param.msg == 'EventDeleted'}">Event deleted successfully.</c:when>
                     <c:when test="${param.msg == 'UserUpdated'}">User account updated successfully.</c:when>
                     <c:when test="${param.msg == 'UserDeleted'}">User account deleted successfully.</c:when>
                     <c:when test="${param.msg == 'UserLocked'}">User account locked successfully.</c:when>
@@ -131,6 +136,7 @@
                     <c:when test="${param.err == 'PrivilegedRequired'}">Only admin@tickify.ac.za can perform this operation.</c:when>
                     <c:when test="${param.err == 'CampusScopeDenied'}">This action is restricted to your assigned campus scope.</c:when>
                     <c:when test="${param.err == 'InvalidAssignment'}">Assignment values must reference existing events, venues, guards, and institutions.</c:when>
+                    <c:when test="${param.err == 'EventHasSales'}">Event cannot be deleted because tickets were already sold.</c:when>
                     <c:when test="${param.err == 'MissingFields'}">Please complete all required fields.</c:when>
                     <c:when test="${param.err == 'UnknownAction'}">Unknown action requested.</c:when>
                     <c:when test="${param.err == 'OperationFailed'}">Operation failed. Please try again.</c:when>
@@ -163,6 +169,31 @@
                 <c:if test="${!isPrivilegedAdmin}">
                     <div class="flash err" style="margin:8px 0 0;">Scoped admin mode: operations outside your campus and direct delete actions are blocked.</div>
                 </c:if>
+
+                <h3 style="margin-top:12px;">Provisioning Workflow</h3>
+                <p style="margin:0 0 8px;color:#5f6f63;">Create guard and manager accounts directly from operations control.</p>
+                <form action="${pageContext.request.contextPath}/AdminDashboard.do" method="POST" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;align-items:end;">
+                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                    <input type="hidden" name="action" value="provisionGuard">
+                    <div class="field"><label>Guard First Name</label><input type="text" name="firstName" required></div>
+                    <div class="field"><label>Guard Last Name</label><input type="text" name="lastName" required></div>
+                    <div class="field"><label>Guard Email</label><input type="email" name="email" required></div>
+                    <div class="field"><label>Temporary Password</label><input type="text" name="password" required></div>
+                    <div class="field"><label>Event</label><select name="eventID" required><option value="">Select</option><c:forEach var="ev" items="${events}"><option value="${ev.eventID}">${ev.name} (#${ev.eventID})</option></c:forEach></select></div>
+                    <div class="field"><label>Campus Venue</label><select name="venueID" required><option value="">Select</option><c:forEach var="v" items="${venues}"><option value="${v.venueID}">${v.name} (#${v.venueID})</option></c:forEach></select></div>
+                    <div class="field"><button class="btn" type="submit">Provision Guard</button></div>
+                </form>
+
+                <form action="${pageContext.request.contextPath}/AdminDashboard.do" method="POST" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;align-items:end;margin-top:8px;">
+                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                    <input type="hidden" name="action" value="provisionManager">
+                    <div class="field"><label>Manager First Name</label><input type="text" name="firstName" required></div>
+                    <div class="field"><label>Manager Last Name</label><input type="text" name="lastName" required></div>
+                    <div class="field"><label>Manager Email</label><input type="email" name="email" required></div>
+                    <div class="field"><label>Temporary Password</label><input type="text" name="password" required></div>
+                    <div class="field"><label>Assigned Guard</label><select name="venueGuardID" required><option value="">Select</option><c:forEach var="g" items="${guardOptions}"><option value="${g.venueGuardID}">${g.firstname} ${g.lastname} (#${g.venueGuardID})</option></c:forEach></select></div>
+                    <div class="field"><button class="btn" type="submit">Provision Manager</button></div>
+                </form>
             </article>
             <article class="card">
                 <h3>Database Summary</h3>
@@ -172,6 +203,58 @@
                     </c:forEach>
                 </div>
             </article>
+        </section>
+
+        <section class="card" style="margin-top:10px;">
+            <h3>Event Operations</h3>
+            <p style="margin:0 0 8px;color:#5f6f63;">Create, update, and delete events with validation and campus scope checks.</p>
+
+            <form action="${pageContext.request.contextPath}/AdminDashboard.do" method="POST" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;align-items:end;">
+                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                <input type="hidden" name="action" value="createEvent">
+                <div class="field"><label>Event Name</label><input type="text" name="eventName" required></div>
+                <div class="field"><label>Type</label><input type="text" name="eventType" required></div>
+                <div class="field"><label>Date/Time</label><input type="datetime-local" name="eventDate" required></div>
+                <div class="field"><label>Venue</label><select name="venueID" required><option value="">Select</option><c:forEach var="v" items="${venues}"><option value="${v.venueID}">${v.name} (#${v.venueID})</option></c:forEach></select></div>
+                <div class="field"><button class="btn" type="submit">Create Event</button></div>
+            </form>
+
+            <form action="${pageContext.request.contextPath}/AdminDashboard.do" method="POST" style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;align-items:end;margin-top:8px;">
+                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                <input type="hidden" name="action" value="updateEvent">
+                <div class="field"><label>Event ID</label><input type="number" name="eventID" min="1" required></div>
+                <div class="field"><label>Event Name</label><input type="text" name="eventName" required></div>
+                <div class="field"><label>Type</label><input type="text" name="eventType" required></div>
+                <div class="field"><label>Date/Time</label><input type="datetime-local" name="eventDate" required></div>
+                <div class="field"><label>Venue</label><select name="venueID" required><option value="">Select</option><c:forEach var="v" items="${venues}"><option value="${v.venueID}">${v.name} (#${v.venueID})</option></c:forEach></select></div>
+                <div class="field"><button class="btn" type="submit">Update Event</button></div>
+            </form>
+
+            <form action="${pageContext.request.contextPath}/AdminDashboard.do" method="POST" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;align-items:end;margin-top:8px;">
+                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                <input type="hidden" name="action" value="deleteEvent">
+                <div class="field"><label>Event ID</label><input type="number" name="eventID" min="1" required></div>
+                <div class="field"><button class="btn btn-alt" type="submit">Delete Event</button></div>
+            </form>
+
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Event ID</th><th>Name</th><th>Type</th><th>Date</th><th>Venue ID</th><th>Campus</th></tr></thead>
+                    <tbody>
+                        <c:forEach var="ev" items="${eventRows}">
+                            <tr>
+                                <td>${ev.eventID}</td>
+                                <td>${ev.name}</td>
+                                <td>${ev.type}</td>
+                                <td>${ev.date}</td>
+                                <td>${ev.venueID}</td>
+                                <td>${ev.campusName}</td>
+                            </tr>
+                        </c:forEach>
+                        <c:if test="${empty eventRows}"><tr><td colspan="6">No events found for your scope.</td></tr></c:if>
+                    </tbody>
+                </table>
+            </div>
         </section>
 
         <section class="card" style="margin-top:10px;">
@@ -265,6 +348,9 @@
         <section class="grid">
             <article class="card">
                 <h3>Campus Revenue</h3>
+                <div class="actions" style="margin-bottom:8px;">
+                    <a class="btn btn-alt" href="${pageContext.request.contextPath}/AdminDashboard.do?export=finance">Export Revenue CSV</a>
+                </div>
                 <div class="table-wrap">
                     <table>
                         <thead><tr><th>Campus</th><th>Address</th><th>Tickets Sold</th><th>Revenue</th></tr></thead>
@@ -283,6 +369,31 @@
                 </div>
             </article>
             <article class="card">
+                <h3>Financial Reconciliation</h3>
+                <div class="actions" style="margin-bottom:8px;">
+                    <a class="btn btn-alt" href="${pageContext.request.contextPath}/AdminDashboard.do?export=reconciliation">Export Reconciliation CSV</a>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Campus</th><th>Sold</th><th>Validated</th><th>Ticket Delta</th><th>Recorded Revenue</th><th>Validated Revenue</th><th>Revenue Delta</th><th>Status</th></tr></thead>
+                        <tbody>
+                            <c:forEach var="row" items="${reconciliation}">
+                                <tr>
+                                    <td>${row.campusName}</td>
+                                    <td>${row.soldTickets}</td>
+                                    <td>${row.validatedTickets}</td>
+                                    <td>${row.ticketDelta}</td>
+                                    <td>R <fmt:formatNumber value="${row.recordedRevenue}" minFractionDigits="2" maxFractionDigits="2"/></td>
+                                    <td>R <fmt:formatNumber value="${row.validatedRevenue}" minFractionDigits="2" maxFractionDigits="2"/></td>
+                                    <td>R <fmt:formatNumber value="${row.revenueDelta}" minFractionDigits="2" maxFractionDigits="2"/></td>
+                                    <td>${row.status}</td>
+                                </tr>
+                            </c:forEach>
+                            <c:if test="${empty reconciliation}"><tr><td colspan="8">No reconciliation rows found.</td></tr></c:if>
+                        </tbody>
+                    </table>
+                </div>
+
                 <h3>Campus Ownership and Responsibility</h3>
                 <div class="table-wrap">
                     <table>
