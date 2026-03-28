@@ -1,6 +1,8 @@
 package za.ac.tut.security;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.security.SecureRandom;
 import java.util.Base64;
 import javax.servlet.Filter;
@@ -12,6 +14,7 @@ import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
+import javax.servlet.http.Part;
 
 public class CsrfFilter implements Filter {
 
@@ -37,7 +40,7 @@ public class CsrfFilter implements Filter {
         }
 
         if ("POST".equalsIgnoreCase(req.getMethod())) {
-            String requestToken = req.getParameter(CSRF_PARAM);
+            String requestToken = resolveRequestToken(req);
             if (requestToken == null || !sessionToken.equals(requestToken)) {
                 resp.sendError(HttpServletResponse.SC_FORBIDDEN, "Invalid CSRF token.");
                 return;
@@ -55,5 +58,36 @@ public class CsrfFilter implements Filter {
         byte[] bytes = new byte[32];
         RANDOM.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    private String resolveRequestToken(HttpServletRequest req) {
+        String token = req.getParameter(CSRF_PARAM);
+        if (token != null && !token.trim().isEmpty()) {
+            return token.trim();
+        }
+
+        String contentType = req.getContentType();
+        if (contentType == null || !contentType.toLowerCase().startsWith("multipart/")) {
+            return token;
+        }
+
+        try {
+            Part csrfPart = req.getPart(CSRF_PARAM);
+            if (csrfPart == null || csrfPart.getSize() <= 0) {
+                return token;
+            }
+            try (InputStream in = csrfPart.getInputStream()) {
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                byte[] buffer = new byte[256];
+                int read;
+                while ((read = in.read(buffer)) != -1) {
+                    out.write(buffer, 0, read);
+                }
+                String partValue = out.toString("UTF-8").trim();
+                return partValue.isEmpty() ? token : partValue;
+            }
+        } catch (Exception ex) {
+            return token;
+        }
     }
 }

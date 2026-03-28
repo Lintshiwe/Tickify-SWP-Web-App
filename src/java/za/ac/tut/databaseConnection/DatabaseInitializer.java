@@ -25,6 +25,7 @@ public class DatabaseInitializer {
             ensureUniqueClientUsernameIndexes(conn);
             ensureRootPasswordConfig(conn);
             seedData(conn);
+            repairRoleCredentials(conn);
             ensureAdditionalCampusAttendees(conn, 100);
             seedAdverts(conn);
             System.out.println("Tickify DB initialized successfully.");
@@ -495,6 +496,78 @@ public class DatabaseInitializer {
             insert.setString(1, "ROOT_PASSWORD_HASH");
             insert.setString(2, PasswordUtil.hashPassword("root123"));
             insert.executeUpdate();
+        }
+    }
+
+    private static void repairRoleCredentials(Connection conn) throws SQLException {
+        // Migrate any legacy plaintext credentials to PBKDF2 hashes.
+        migrateLegacyPasswords(conn, "admin", "adminID");
+        migrateLegacyPasswords(conn, "attendee", "attendeeID");
+        migrateLegacyPasswords(conn, "venue_guard", "venueGuardID");
+        migrateLegacyPasswords(conn, "event_manager", "eventManagerID");
+        migrateLegacyPasswords(conn, "tertiary_presenter", "tertiaryPresenterID");
+
+        // Enforce known seeded credentials so role smoke logins remain reliable.
+        enforceSeededPassword(conn, "admin", "admin@tickify.ac.za", "admin123");
+        enforceSeededPassword(conn, "admin", "thabo@tickify.ac.za", "pass1234");
+        enforceSeededPassword(conn, "admin", "lerato@tickify.ac.za", "pass5678");
+        enforceSeededPassword(conn, "admin", "sipho@tickify.ac.za", "pass9012");
+        enforceSeededPassword(conn, "admin", "nomsa@tickify.ac.za", "pass3456");
+
+        enforceSeededPassword(conn, "attendee", "lekwene@student.dut.ac.za", "att001");
+        enforceSeededPassword(conn, "attendee", "ntoampi@student.ukzn.ac.za", "att002");
+        enforceSeededPassword(conn, "attendee", "mokoena@student.wits.ac.za", "att003");
+        enforceSeededPassword(conn, "attendee", "sosiba@student.uj.ac.za", "att004");
+        enforceSeededPassword(conn, "attendee", "mngadi@student.cput.ac.za", "att005");
+
+        enforceSeededPassword(conn, "venue_guard", "guard1@tickify.ac.za", "guard001");
+        enforceSeededPassword(conn, "venue_guard", "guard2@tickify.ac.za", "guard002");
+        enforceSeededPassword(conn, "venue_guard", "guard3@tickify.ac.za", "guard003");
+        enforceSeededPassword(conn, "venue_guard", "guard4@tickify.ac.za", "guard004");
+        enforceSeededPassword(conn, "venue_guard", "guard5@tickify.ac.za", "guard005");
+
+        enforceSeededPassword(conn, "event_manager", "mgr1@tickify.ac.za", "mgr001");
+        enforceSeededPassword(conn, "event_manager", "mgr2@tickify.ac.za", "mgr002");
+        enforceSeededPassword(conn, "event_manager", "mgr3@tickify.ac.za", "mgr003");
+        enforceSeededPassword(conn, "event_manager", "mgr4@tickify.ac.za", "mgr004");
+        enforceSeededPassword(conn, "event_manager", "mgr5@tickify.ac.za", "mgr005");
+
+        enforceSeededPassword(conn, "tertiary_presenter", "pzulu@dut.ac.za", "pres001");
+        enforceSeededPassword(conn, "tertiary_presenter", "dnaidoo@ukzn.ac.za", "pres002");
+        enforceSeededPassword(conn, "tertiary_presenter", "psmith@wits.ac.za", "pres003");
+        enforceSeededPassword(conn, "tertiary_presenter", "dbaloyi@uj.ac.za", "pres004");
+        enforceSeededPassword(conn, "tertiary_presenter", "pjacobs@cput.ac.za", "pres005");
+    }
+
+    private static void migrateLegacyPasswords(Connection conn, String tableName, String idColumn) throws SQLException {
+        String selectSql = "SELECT " + idColumn + ", password FROM " + tableName;
+        String updateSql = "UPDATE " + tableName + " SET password = ? WHERE " + idColumn + " = ?";
+        try (PreparedStatement select = conn.prepareStatement(selectSql);
+             PreparedStatement update = conn.prepareStatement(updateSql);
+             ResultSet rs = select.executeQuery()) {
+            while (rs.next()) {
+                String stored = rs.getString("password");
+                if (stored == null) {
+                    continue;
+                }
+                String trimmed = stored.trim();
+                if (trimmed.isEmpty() || trimmed.startsWith("pbkdf2$")) {
+                    continue;
+                }
+                update.setString(1, PasswordUtil.hashPassword(trimmed));
+                update.setInt(2, rs.getInt(idColumn));
+                update.executeUpdate();
+            }
+        }
+    }
+
+    private static void enforceSeededPassword(Connection conn, String tableName, String email, String rawPassword) throws SQLException {
+        String sql = "UPDATE " + tableName + " SET email = ?, password = ? WHERE LOWER(email) = LOWER(?)";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, email.toLowerCase());
+            ps.setString(2, PasswordUtil.hashPassword(rawPassword));
+            ps.setString(3, email);
+            ps.executeUpdate();
         }
     }
  

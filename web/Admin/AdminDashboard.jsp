@@ -124,7 +124,11 @@
                     <c:when test="${param.msg == 'ManagerProvisioned'}">Event manager provisioned successfully.</c:when>
                     <c:when test="${param.msg == 'EventCreated'}">Event created successfully.</c:when>
                     <c:when test="${param.msg == 'EventUpdated'}">Event updated successfully.</c:when>
+                    <c:when test="${param.msg == 'EventCoverUpdated'}">Event album cover updated successfully.</c:when>
                     <c:when test="${param.msg == 'EventDeleted'}">Event deleted successfully.</c:when>
+                    <c:when test="${param.msg == 'TicketCreated'}">Ticket batch created successfully.</c:when>
+                    <c:when test="${param.msg == 'TicketUpdated'}">Ticket updated successfully.</c:when>
+                    <c:when test="${param.msg == 'TicketDeleted'}">Ticket deleted successfully.</c:when>
                     <c:when test="${param.msg == 'UserUpdated'}">User account updated successfully.</c:when>
                     <c:when test="${param.msg == 'UserDeleted'}">User account deleted successfully.</c:when>
                     <c:when test="${param.msg == 'UserLocked'}">User account locked successfully.</c:when>
@@ -160,6 +164,9 @@
                     <c:when test="${param.err == 'CampusScopeDenied'}">This action is restricted to your assigned campus scope.</c:when>
                     <c:when test="${param.err == 'InvalidAssignment'}">Assignment values must reference existing events, venues, guards, and institutions.</c:when>
                     <c:when test="${param.err == 'EventHasSales'}">Event cannot be deleted because tickets were already sold.</c:when>
+                    <c:when test="${param.err == 'TicketHasSales'}">Ticket cannot be changed or deleted because it was sold.</c:when>
+                    <c:when test="${param.err == 'TicketHasScans'}">Ticket cannot be deleted because scan history exists.</c:when>
+                    <c:when test="${param.err == 'InvalidImage'}">Please upload a valid image file for the event album cover.</c:when>
                     <c:when test="${param.err == 'MissingFields'}">Please complete all required fields.</c:when>
                     <c:when test="${param.err == 'EmailInUse'}">That email address is already used by another admin account.</c:when>
                     <c:when test="${param.err == 'UnknownAction'}">Unknown action requested.</c:when>
@@ -244,22 +251,29 @@
 
         <section class="card" style="margin-top:10px;">
             <h3>Event Operations</h3>
-            <p style="margin:0 0 8px;color:#5f6f63;">Create, update, and delete events with validation and campus scope checks.</p>
+            <p style="margin:0 0 8px;color:#5f6f63;">Create, update, and delete events with full metadata, validation, and campus scope checks.</p>
             <c:if test="${autoRetiredCleanupRows != null && autoRetiredCleanupRows > 0}">
                 <div class="flash ok" style="margin-top:0;">Automatic cleanup removed ${autoRetiredCleanupRows} passed/cancelled event(s).</div>
             </c:if>
 
-            <form action="${pageContext.request.contextPath}/AdminDashboard.do" method="POST" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;align-items:end;">
+            <form action="${pageContext.request.contextPath}/AdminDashboard.do" method="POST" enctype="multipart/form-data" style="display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:8px;align-items:end;">
                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                 <input type="hidden" name="action" value="createEvent">
                 <div class="field"><label>Event Name</label><input type="text" name="eventName" required></div>
                 <div class="field"><label>Type</label><input type="text" name="eventType" required></div>
                 <div class="field"><label>Date/Time</label><input type="datetime-local" name="eventDate" required></div>
                 <div class="field"><label>Venue</label><select name="venueID" required><option value="">Select</option><c:forEach var="v" items="${venues}"><option value="${v.venueID}">${v.name} (#${v.venueID})</option></c:forEach></select></div>
+                <div class="field"><label>Status</label><select name="eventStatus"><option value="ACTIVE">Active</option><option value="CANCELLED">Cancelled</option><option value="PASSED">Passed</option></select></div>
+                <div class="field" style="grid-column:span 2;"><label>Description</label><input type="text" name="eventDescription" maxlength="1200" placeholder="Event details"></div>
+                <div class="field"><label>Info URL</label><input type="url" name="eventInfoUrl" maxlength="255" placeholder="https://"></div>
+                <div class="field" style="grid-column:span 2;"><label>Album Cover (all image formats)</label><input type="file" name="eventAlbumImage" accept="image/*"></div>
+                <div class="field"><label>Initial Ticket Name</label><input type="text" name="initialTicketName" maxlength="45" placeholder="Optional"></div>
+                <div class="field"><label>Initial Ticket Price</label><input type="number" name="initialTicketPrice" step="0.01" min="0" placeholder="Optional"></div>
+                <div class="field"><label>Number of Tickets</label><input type="number" name="initialTicketQuantity" min="1" placeholder="Optional"></div>
                 <div class="field"><button class="btn" type="submit">Create Event</button></div>
             </form>
 
-            <form action="${pageContext.request.contextPath}/AdminDashboard.do" method="POST" style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;align-items:end;margin-top:8px;">
+            <form action="${pageContext.request.contextPath}/AdminDashboard.do" method="POST" enctype="multipart/form-data" style="display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:8px;align-items:end;margin-top:8px;">
                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                 <input type="hidden" name="action" value="updateEvent">
                 <div class="field"><label>Event ID</label><input type="number" name="eventID" min="1" required></div>
@@ -267,6 +281,10 @@
                 <div class="field"><label>Type</label><input type="text" name="eventType" required></div>
                 <div class="field"><label>Date/Time</label><input type="datetime-local" name="eventDate" required></div>
                 <div class="field"><label>Venue</label><select name="venueID" required><option value="">Select</option><c:forEach var="v" items="${venues}"><option value="${v.venueID}">${v.name} (#${v.venueID})</option></c:forEach></select></div>
+                <div class="field"><label>Status</label><select name="eventStatus"><option value="ACTIVE">Active</option><option value="CANCELLED">Cancelled</option><option value="PASSED">Passed</option></select></div>
+                <div class="field" style="grid-column:span 2;"><label>Description</label><input type="text" name="eventDescription" maxlength="1200" placeholder="Event details"></div>
+                <div class="field"><label>Info URL</label><input type="url" name="eventInfoUrl" maxlength="255" placeholder="https://"></div>
+                <div class="field" style="grid-column:span 2;"><label>Album Cover (all image formats)</label><input type="file" name="eventAlbumImage" accept="image/*"></div>
                 <div class="field"><button class="btn" type="submit">Update Event</button></div>
             </form>
 
@@ -299,20 +317,37 @@
                     <span id="eventQuickFilterSummary" style="margin-left:10px;color:#5f6f63;">Showing all events</span>
                 </div>
                 <table>
-                    <thead><tr><th>Event ID</th><th>Name</th><th>Type</th><th>Status</th><th>Date</th><th>Venue ID</th><th>Campus</th></tr></thead>
+                    <thead><tr><th>Event ID</th><th>Cover</th><th>Replace Cover</th><th>Name</th><th>Type</th><th>Status</th><th>Date</th><th>Description</th><th>Info URL</th><th>Venue ID</th><th>Campus</th></tr></thead>
                     <tbody>
                         <c:forEach var="ev" items="${eventRows}">
                             <tr class="event-row" data-status="${ev.status}" data-date="${ev.date}">
                                 <td>${ev.eventID}</td>
+                                <td><img src="${pageContext.request.contextPath}/EventAlbumImage.do?eventID=${ev.eventID}" alt="Event cover" style="width:72px;height:42px;object-fit:cover;border-radius:6px;border:1px solid #d8e0d2;"></td>
+                                <td>
+                                    <form action="${pageContext.request.contextPath}/AdminDashboard.do" method="POST" enctype="multipart/form-data" style="display:flex;gap:6px;align-items:center;">
+                                        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                        <input type="hidden" name="action" value="uploadEventCoverOnly">
+                                        <input type="hidden" name="eventID" value="${ev.eventID}">
+                                        <input type="file" name="eventAlbumImage" accept="image/*" required style="max-width:170px;">
+                                        <button class="btn btn-alt" type="submit">Replace</button>
+                                    </form>
+                                </td>
                                 <td>${ev.name}</td>
                                 <td>${ev.type}</td>
                                 <td>${ev.status}</td>
                                 <td>${ev.date}</td>
+                                <td>${ev.description}</td>
+                                <td>
+                                    <c:choose>
+                                        <c:when test="${not empty ev.infoUrl}"><a href="${ev.infoUrl}" target="_blank" rel="noopener noreferrer">Open</a></c:when>
+                                        <c:otherwise>-</c:otherwise>
+                                    </c:choose>
+                                </td>
                                 <td>${ev.venueID}</td>
                                 <td>${ev.campusName}</td>
                             </tr>
                         </c:forEach>
-                        <c:if test="${empty eventRows}"><tr><td colspan="7">No events found for your scope.</td></tr></c:if>
+                        <c:if test="${empty eventRows}"><tr><td colspan="11">No events found for your scope.</td></tr></c:if>
                     </tbody>
                 </table>
             </div>
@@ -525,6 +560,65 @@
                     <p style="margin:0;color:#5f6f63;">Only main admin can run this operation.</p>
                 </c:otherwise>
             </c:choose>
+        </section>
+
+        <section class="card" style="margin-top:10px;">
+            <h3>Ticket Management</h3>
+            <c:choose>
+                <c:when test="${isPrivilegedAdmin}">
+                    <p style="margin:0 0 8px;color:#5f6f63;">Main admin can create, update, and delete existing ticket records.</p>
+
+                    <form action="${pageContext.request.contextPath}/AdminDashboard.do" method="POST" style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;align-items:end;">
+                        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                        <input type="hidden" name="action" value="createTicket">
+                        <div class="field"><label>Event</label><select name="eventID" required><option value="">Select</option><c:forEach var="ev" items="${events}"><option value="${ev.eventID}">${ev.name} (#${ev.eventID})</option></c:forEach></select></div>
+                        <div class="field"><label>Ticket Name</label><input type="text" name="ticketName" maxlength="45" required></div>
+                        <div class="field"><label>Price</label><input type="number" name="ticketPrice" step="0.01" min="0" required></div>
+                        <div class="field"><label>Quantity</label><input type="number" name="ticketQuantity" min="1" value="1" required></div>
+                        <div class="field"><button class="btn" type="submit">Create Ticket Batch</button></div>
+                    </form>
+
+                    <form action="${pageContext.request.contextPath}/AdminDashboard.do" method="POST" style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;align-items:end;margin-top:8px;">
+                        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                        <input type="hidden" name="action" value="updateTicket">
+                        <div class="field"><label>Ticket ID</label><input type="number" name="ticketID" min="1" required></div>
+                        <div class="field"><label>Event ID</label><input type="number" name="eventID" min="1" required></div>
+                        <div class="field"><label>Ticket Name</label><input type="text" name="ticketName" maxlength="45" required></div>
+                        <div class="field"><label>Price</label><input type="number" name="ticketPrice" step="0.01" min="0" required></div>
+                        <div class="field"><button class="btn" type="submit">Update Ticket</button></div>
+                    </form>
+
+                    <form action="${pageContext.request.contextPath}/AdminDashboard.do" method="POST" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;align-items:end;margin-top:8px;">
+                        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                        <input type="hidden" name="action" value="deleteTicket">
+                        <div class="field"><label>Ticket ID</label><input type="number" name="ticketID" min="1" required></div>
+                        <div class="field"><button class="btn btn-alt" type="submit">Delete Ticket</button></div>
+                    </form>
+                </c:when>
+                <c:otherwise>
+                    <p style="margin:0;color:#5f6f63;">Only main admin can perform ticket CRUD. Campus admins can still edit event details in their scope.</p>
+                </c:otherwise>
+            </c:choose>
+
+            <div class="table-wrap" style="margin-top:8px;">
+                <table>
+                    <thead><tr><th>Ticket ID</th><th>Ticket</th><th>Event</th><th>Campus</th><th>Price</th><th>Sold</th><th>Scans</th></tr></thead>
+                    <tbody>
+                        <c:forEach var="t" items="${ticketRows}">
+                            <tr>
+                                <td>${t.ticketID}</td>
+                                <td>${t.ticketName}</td>
+                                <td>${t.eventName} (#${t.eventID})</td>
+                                <td>${t.campusName}</td>
+                                <td>R <fmt:formatNumber value="${t.price}" minFractionDigits="2" maxFractionDigits="2"/></td>
+                                <td>${t.soldCount}</td>
+                                <td>${t.scanCount}</td>
+                            </tr>
+                        </c:forEach>
+                        <c:if test="${empty ticketRows}"><tr><td colspan="7">No tickets found for your scope.</td></tr></c:if>
+                    </tbody>
+                </table>
+            </div>
         </section>
 
         <section class="card" style="margin-top:10px;">

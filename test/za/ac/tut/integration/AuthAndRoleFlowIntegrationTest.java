@@ -7,6 +7,7 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
+import za.ac.tut.databaseConnection.DatabaseInitializer;
 import za.ac.tut.databaseManagement.AdminITDAO;
 import za.ac.tut.databaseManagement.TertiaryPresenterDAO;
 import za.ac.tut.databaseManagement.UserDAO;
@@ -14,6 +15,7 @@ import za.ac.tut.databaseManagement.UserDAO;
 public class AuthAndRoleFlowIntegrationTest {
 
     private static final String[] DB_CANDIDATES = new String[]{
+        "/home/lintshiwe/.netbeans-derby/tickifyDB",
         "/home/lintshiwe/GlassFish_Server/glassfish/databases/tickifyDB",
         "/home/lintshiwe/GlassFish_Server/glassfish/domains/domain1/config/tickifyDB"
     };
@@ -28,30 +30,21 @@ public class AuthAndRoleFlowIntegrationTest {
         System.setProperty("tickify.db.password", "app");
         System.setProperty("tickify.db.mode", "embedded");
         System.setProperty("tickify.db.name", dbPath);
+
+        // Ensure initialization migrations/repairs run before auth checks.
+        DatabaseInitializer.initialize();
     }
 
-    public static void attendeeCredentialsAuthenticateForRole() throws Exception {
+    public static void seededRoleCredentialsAuthenticate() throws Exception {
         UserDAO dao = new UserDAO();
 
-        String attendeeEmail = System.getProperty("tickify.test.attendee.email", "ntoampi@student.ukzn.ac.za").trim();
-        String attendeePassword = System.getProperty("tickify.test.attendee.password", "").trim();
+        assertRoleLogin(dao, "ADMIN", "thabo@tickify.ac.za", "pass1234", false);
+        assertRoleLogin(dao, "EVENT_MANAGER", "mgr1@tickify.ac.za", "mgr001", false);
+        assertRoleLogin(dao, "VENUE_GUARD", "guard1@tickify.ac.za", "guard001", false);
+        assertRoleLogin(dao, "TERTIARY_PRESENTER", "pzulu@dut.ac.za", "pres001", true);
+        assertRoleLogin(dao, "ATTENDEE", "ntoampi@student.ukzn.ac.za", "att002", true);
 
-        int uid = dao.getUserIDByIdentifier(attendeeEmail, "attendee", "attendeeID", true);
-        if (uid <= 0) {
-            String fallbackIdentifier = findAnyAttendeeIdentifier();
-            require(fallbackIdentifier != null && !fallbackIdentifier.trim().isEmpty(), "No attendee account found in database");
-            attendeeEmail = fallbackIdentifier;
-            uid = dao.getUserIDByIdentifier(attendeeEmail, "attendee", "attendeeID", true);
-        }
-        require(uid > 0, "Attendee ID should resolve");
-        require(!dao.isAccountLocked("ATTENDEE", uid), "Attendee profile should not be locked");
-
-        if (!attendeePassword.isEmpty()) {
-            String role = dao.authenticateSpecific(attendeeEmail, attendeePassword, "ATTENDEE");
-            require("ATTENDEE".equals(role), "Expected ATTENDEE role for attendee login");
-        } else {
-            System.out.println("Skipping attendee password auth check: set -Dtickify.test.attendee.password to enable it.");
-        }
+        System.out.println("Seeded role credential checks passed for ADMIN, EVENT_MANAGER, VENUE_GUARD, TERTIARY_PRESENTER, ATTENDEE.");
     }
 
     public static void newAdminWorkflowQueriesReturnNonNullCollections() throws Exception {
@@ -88,10 +81,55 @@ public class AuthAndRoleFlowIntegrationTest {
 
     public static void main(String[] args) throws Exception {
         configureDatabase();
-        attendeeCredentialsAuthenticateForRole();
+        seededRoleCredentialsAuthenticate();
         newAdminWorkflowQueriesReturnNonNullCollections();
         newPresenterWorkflowQueriesReturnNonNullCollections();
         System.out.println("AuthAndRoleFlowIntegrationTest: PASS");
+    }
+
+    private static void assertRoleLogin(UserDAO dao, String role, String identifier, String password, boolean allowUsername) throws Exception {
+        String authenticatedRole = dao.authenticateSpecific(identifier, password, role);
+        require(role.equals(authenticatedRole), "Expected " + role + " role for login of " + identifier);
+
+        String table = tableForRole(role);
+        String idColumn = idColumnForRole(role);
+        int uid = dao.getUserIDByIdentifier(identifier, table, idColumn, allowUsername);
+        require(uid > 0, "User ID should resolve for " + role + " login: " + identifier);
+        require(!dao.isAccountLocked(role, uid), role + " account should not be locked for " + identifier);
+    }
+
+    private static String tableForRole(String role) {
+        switch (role) {
+            case "ADMIN":
+                return "admin";
+            case "EVENT_MANAGER":
+                return "event_manager";
+            case "VENUE_GUARD":
+                return "venue_guard";
+            case "TERTIARY_PRESENTER":
+                return "tertiary_presenter";
+            case "ATTENDEE":
+                return "attendee";
+            default:
+                throw new IllegalArgumentException("Unsupported role: " + role);
+        }
+    }
+
+    private static String idColumnForRole(String role) {
+        switch (role) {
+            case "ADMIN":
+                return "adminID";
+            case "EVENT_MANAGER":
+                return "eventManagerID";
+            case "VENUE_GUARD":
+                return "venueGuardID";
+            case "TERTIARY_PRESENTER":
+                return "tertiaryPresenterID";
+            case "ATTENDEE":
+                return "attendeeID";
+            default:
+                throw new IllegalArgumentException("Unsupported role: " + role);
+        }
     }
 
     private static void require(boolean condition, String message) {

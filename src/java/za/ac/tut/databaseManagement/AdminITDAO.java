@@ -1,5 +1,6 @@
 package za.ac.tut.databaseManagement;
 
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
@@ -182,7 +183,9 @@ public class AdminITDAO {
 
     public List<Map<String, Object>> getEventControlRowsForScope(int adminId) throws SQLException {
         if (isPrivilegedAdmin(adminId)) {
-            return runListQuery("SELECT e.eventID, e.name, e.type, e.date, e.venueID, v.name AS campusName, v.address AS campusAddress "
+            return runListQuery("SELECT e.eventID, e.name, e.type, e.date, COALESCE(NULLIF(TRIM(e.description), ''), '') AS description, "
+                    + "COALESCE(NULLIF(TRIM(e.infoUrl), ''), '') AS infoUrl, COALESCE(NULLIF(TRIM(e.status), ''), 'ACTIVE') AS status, "
+                    + "e.venueID, v.name AS campusName, v.address AS campusAddress "
                     + "FROM event e LEFT JOIN venue v ON v.venueID = e.venueID "
                     + "ORDER BY e.date DESC", Collections.emptyList());
         }
@@ -190,7 +193,9 @@ public class AdminITDAO {
         if (campusVenueId == null || campusVenueId <= 0) {
             return new ArrayList<>();
         }
-        return runListQuery("SELECT e.eventID, e.name, e.type, e.date, e.venueID, v.name AS campusName, v.address AS campusAddress "
+        return runListQuery("SELECT e.eventID, e.name, e.type, e.date, COALESCE(NULLIF(TRIM(e.description), ''), '') AS description, "
+                + "COALESCE(NULLIF(TRIM(e.infoUrl), ''), '') AS infoUrl, COALESCE(NULLIF(TRIM(e.status), ''), 'ACTIVE') AS status, "
+                + "e.venueID, v.name AS campusName, v.address AS campusAddress "
                 + "FROM event e LEFT JOIN venue v ON v.venueID = e.venueID "
                 + "WHERE e.venueID = ? ORDER BY e.date DESC", Arrays.<Object>asList(campusVenueId));
     }
@@ -219,7 +224,9 @@ public class AdminITDAO {
         int safePageSize = pageSize <= 0 ? 10 : pageSize;
         int offset = (safePage - 1) * safePageSize;
         if (isPrivilegedAdmin(adminId)) {
-            return runListQuery("SELECT e.eventID, e.name, e.type, e.date, COALESCE(NULLIF(TRIM(e.status), ''), 'ACTIVE') AS status, e.venueID, v.name AS campusName, v.address AS campusAddress "
+            return runListQuery("SELECT e.eventID, e.name, e.type, e.date, COALESCE(NULLIF(TRIM(e.description), ''), '') AS description, "
+                    + "COALESCE(NULLIF(TRIM(e.infoUrl), ''), '') AS infoUrl, COALESCE(NULLIF(TRIM(e.status), ''), 'ACTIVE') AS status, "
+                    + "e.venueID, v.name AS campusName, v.address AS campusAddress "
                     + "FROM event e LEFT JOIN venue v ON v.venueID = e.venueID "
                     + "ORDER BY e.date DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY",
                     Arrays.<Object>asList(offset, safePageSize));
@@ -228,13 +235,16 @@ public class AdminITDAO {
         if (campusVenueId == null || campusVenueId <= 0) {
             return new ArrayList<>();
         }
-        return runListQuery("SELECT e.eventID, e.name, e.type, e.date, COALESCE(NULLIF(TRIM(e.status), ''), 'ACTIVE') AS status, e.venueID, v.name AS campusName, v.address AS campusAddress "
+        return runListQuery("SELECT e.eventID, e.name, e.type, e.date, COALESCE(NULLIF(TRIM(e.description), ''), '') AS description, "
+                + "COALESCE(NULLIF(TRIM(e.infoUrl), ''), '') AS infoUrl, COALESCE(NULLIF(TRIM(e.status), ''), 'ACTIVE') AS status, "
+                + "e.venueID, v.name AS campusName, v.address AS campusAddress "
                 + "FROM event e LEFT JOIN venue v ON v.venueID = e.venueID "
                 + "WHERE e.venueID = ? ORDER BY e.date DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY",
                 Arrays.<Object>asList(campusVenueId, offset, safePageSize));
     }
 
-    public boolean createEvent(int adminId, String name, String type, Timestamp eventDate, int venueId) throws SQLException {
+    public int createEvent(int adminId, String name, String type, Timestamp eventDate,
+            int venueId, String description, String infoUrl, String status) throws SQLException {
         if (name == null || name.trim().isEmpty() || type == null || type.trim().isEmpty() || eventDate == null || venueId <= 0) {
             throw new SQLException("MissingFields");
         }
@@ -247,15 +257,22 @@ public class AdminITDAO {
             throw new SQLException("InvalidAssignment");
         }
 
-        String sql = "INSERT INTO event(name, type, date, venueID) VALUES(?,?,?,?)";
+        String normalizedStatus = normalizeEventStatus(status);
+        String normalizedDescription = normalizeOptionalText(description, 1200);
+        String normalizedInfoUrl = normalizeOptionalText(infoUrl, 255);
+
+        String sql = "INSERT INTO event(name, type, date, venueID, description, infoUrl, status) VALUES(?,?,?,?,?,?,?)";
         try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, name.trim());
             ps.setString(2, type.trim());
             ps.setTimestamp(3, eventDate);
             ps.setInt(4, venueId);
+            ps.setString(5, normalizedDescription);
+            ps.setString(6, normalizedInfoUrl);
+            ps.setString(7, normalizedStatus);
             int affected = ps.executeUpdate();
             if (affected <= 0) {
-                return false;
+                return 0;
             }
             int newEventId = 0;
             try (ResultSet keys = ps.getGeneratedKeys()) {
@@ -264,11 +281,12 @@ public class AdminITDAO {
                 }
             }
             logAudit(conn, adminId, "CREATE_EVENT", "event", String.valueOf(newEventId), "Created event '" + name.trim() + "'");
-            return true;
+            return newEventId;
         }
     }
 
-    public boolean updateEvent(int adminId, int eventId, String name, String type, Timestamp eventDate, int venueId) throws SQLException {
+    public boolean updateEvent(int adminId, int eventId, String name, String type, Timestamp eventDate,
+            int venueId, String description, String infoUrl, String status) throws SQLException {
         if (eventId <= 0 || name == null || name.trim().isEmpty() || type == null || type.trim().isEmpty() || eventDate == null || venueId <= 0) {
             throw new SQLException("MissingFields");
         }
@@ -282,19 +300,325 @@ public class AdminITDAO {
             throw new SQLException("InvalidAssignment");
         }
 
-        String sql = "UPDATE event SET name=?, type=?, date=?, venueID=? WHERE eventID=?";
+        String normalizedStatus = normalizeEventStatus(status);
+        String normalizedDescription = normalizeOptionalText(description, 1200);
+        String normalizedInfoUrl = normalizeOptionalText(infoUrl, 255);
+
+        String sql = "UPDATE event SET name=?, type=?, date=?, venueID=?, description=?, infoUrl=?, status=? WHERE eventID=?";
         try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, name.trim());
             ps.setString(2, type.trim());
             ps.setTimestamp(3, eventDate);
             ps.setInt(4, venueId);
-            ps.setInt(5, eventId);
+            ps.setString(5, normalizedDescription);
+            ps.setString(6, normalizedInfoUrl);
+            ps.setString(7, normalizedStatus);
+            ps.setInt(8, eventId);
             int affected = ps.executeUpdate();
             if (affected > 0) {
                 logAudit(conn, adminId, "UPDATE_EVENT", "event", String.valueOf(eventId), "Updated event fields");
                 return true;
             }
             return false;
+        }
+    }
+
+    public boolean updateEventAlbumImageForScope(int adminId, int eventId,
+            String filename, String mimeType, byte[] imageData) throws SQLException {
+        if (adminId <= 0 || eventId <= 0 || imageData == null || imageData.length == 0) {
+            throw new SQLException("MissingFields");
+        }
+        if (!hasCampusAccessForRoleMutation(adminId, "ADMIN", null, eventId, null, null)) {
+            throw new SQLException("CampusScopeDenied");
+        }
+        String normalizedFilename = normalizeOptionalText(filename, 255);
+        String normalizedMimeType = normalizeOptionalText(mimeType, 100);
+        if (normalizedMimeType == null) {
+            normalizedMimeType = "image/jpeg";
+        }
+
+        String sql = "UPDATE event SET imageFilename = ?, imageMimeType = ?, imageData = ? WHERE eventID = ?";
+        try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, normalizedFilename);
+            ps.setString(2, normalizedMimeType);
+            ps.setBytes(3, imageData);
+            ps.setInt(4, eventId);
+            int affected = ps.executeUpdate();
+            if (affected > 0) {
+                logAudit(conn, adminId, "UPLOAD_EVENT_COVER", "event", String.valueOf(eventId), "Updated event album cover");
+                return true;
+            }
+            return false;
+        }
+    }
+
+    public boolean clearEventAlbumImageForScope(int adminId, int eventId) throws SQLException {
+        if (adminId <= 0 || eventId <= 0) {
+            throw new SQLException("MissingFields");
+        }
+        if (!hasCampusAccessForRoleMutation(adminId, "ADMIN", null, eventId, null, null)) {
+            throw new SQLException("CampusScopeDenied");
+        }
+
+        String sql = "UPDATE event SET imageFilename = NULL, imageMimeType = NULL, imageData = NULL WHERE eventID = ?";
+        try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, eventId);
+            int affected = ps.executeUpdate();
+            if (affected > 0) {
+                logAudit(conn, adminId, "CLEAR_EVENT_COVER", "event", String.valueOf(eventId), "Removed event album cover");
+                return true;
+            }
+            return false;
+        }
+    }
+
+    public List<Map<String, Object>> getTicketControlRowsForScope(int adminId) throws SQLException {
+        if (isPrivilegedAdmin(adminId)) {
+            return runListQuery("SELECT t.ticketID, t.name AS ticketName, t.price, e.eventID, e.name AS eventName, "
+                    + "v.venueID, v.name AS campusName, COUNT(DISTINCT aht.attendeeID) AS soldCount, "
+                    + "COUNT(DISTINCT sl.scanLogID) AS scanCount "
+                    + "FROM ticket t "
+                    + "LEFT JOIN event_has_ticket eht ON eht.ticketID = t.ticketID "
+                    + "LEFT JOIN event e ON e.eventID = eht.eventID "
+                    + "LEFT JOIN venue v ON v.venueID = e.venueID "
+                    + "LEFT JOIN attendee_has_ticket aht ON aht.ticketID = t.ticketID "
+                    + "LEFT JOIN scan_log sl ON sl.ticketID = t.ticketID "
+                    + "GROUP BY t.ticketID, t.name, t.price, e.eventID, e.name, v.venueID, v.name "
+                    + "ORDER BY t.ticketID DESC FETCH FIRST 400 ROWS ONLY", Collections.emptyList());
+        }
+        Integer campusVenueId = getAdminCampusVenueId(adminId);
+        if (campusVenueId == null || campusVenueId <= 0) {
+            return new ArrayList<>();
+        }
+        return runListQuery("SELECT t.ticketID, t.name AS ticketName, t.price, e.eventID, e.name AS eventName, "
+                + "v.venueID, v.name AS campusName, COUNT(DISTINCT aht.attendeeID) AS soldCount, "
+                + "COUNT(DISTINCT sl.scanLogID) AS scanCount "
+                + "FROM ticket t "
+                + "LEFT JOIN event_has_ticket eht ON eht.ticketID = t.ticketID "
+                + "LEFT JOIN event e ON e.eventID = eht.eventID "
+                + "LEFT JOIN venue v ON v.venueID = e.venueID "
+                + "LEFT JOIN attendee_has_ticket aht ON aht.ticketID = t.ticketID "
+                + "LEFT JOIN scan_log sl ON sl.ticketID = t.ticketID "
+                + "WHERE v.venueID = ? "
+                + "GROUP BY t.ticketID, t.name, t.price, e.eventID, e.name, v.venueID, v.name "
+                + "ORDER BY t.ticketID DESC FETCH FIRST 400 ROWS ONLY", Arrays.<Object>asList(campusVenueId));
+    }
+
+    public boolean createTicketsForEvent(int adminId, int eventId, String ticketName, BigDecimal price, int quantity) throws SQLException {
+        if (eventId <= 0 || ticketName == null || ticketName.trim().isEmpty() || price == null || quantity <= 0) {
+            throw new SQLException("MissingFields");
+        }
+        if (price.compareTo(BigDecimal.ZERO) < 0) {
+            throw new SQLException("InvalidAssignment");
+        }
+        if (!existsById(eventId, "event", "eventID")) {
+            throw new SQLException("InvalidAssignment");
+        }
+        if (!hasCampusAccessForRoleMutation(adminId, "ADMIN", null, eventId, null, null)) {
+            throw new SQLException("CampusScopeDenied");
+        }
+
+        String normalizedName = normalizeOptionalText(ticketName, 45);
+        if (normalizedName == null || normalizedName.isEmpty()) {
+            throw new SQLException("MissingFields");
+        }
+
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try (PreparedStatement ticketInsert = conn.prepareStatement(
+                    "INSERT INTO ticket(name, price, QRcodeID) VALUES(?, ?, ?)", Statement.RETURN_GENERATED_KEYS);
+                    PreparedStatement mapInsert = conn.prepareStatement(
+                            "INSERT INTO event_has_ticket(eventID, ticketID) VALUES(?, ?)")) {
+                long marker = System.currentTimeMillis();
+                int created = 0;
+                for (int i = 1; i <= quantity; i++) {
+                    int qrId = createQrRecord(conn, "ADM-" + eventId + "-" + marker + "-" + i);
+
+                    String generatedName = quantity == 1
+                            ? normalizedName
+                            : normalizedName + " #" + i;
+                    ticketInsert.setString(1, generatedName);
+                    ticketInsert.setBigDecimal(2, price);
+                    ticketInsert.setInt(3, qrId);
+                    ticketInsert.executeUpdate();
+
+                    int ticketId;
+                    try (ResultSet ticketKeys = ticketInsert.getGeneratedKeys()) {
+                        if (!ticketKeys.next()) {
+                            conn.rollback();
+                            return false;
+                        }
+                        ticketId = ticketKeys.getInt(1);
+                    }
+
+                    mapInsert.setInt(1, eventId);
+                    mapInsert.setInt(2, ticketId);
+                    mapInsert.executeUpdate();
+                    created++;
+                }
+                logAudit(conn, adminId, "CREATE_TICKET", "ticket", String.valueOf(eventId),
+                        "Created " + created + " ticket(s) for event " + eventId);
+                conn.commit();
+                return created > 0;
+            } catch (SQLException ex) {
+                conn.rollback();
+                throw ex;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        }
+    }
+
+    public boolean updateTicket(int adminId, int ticketId, int eventId, String ticketName, BigDecimal price) throws SQLException {
+        if (!isPrivilegedAdmin(adminId)) {
+            throw new SQLException("PrivilegedRequired");
+        }
+        if (ticketId <= 0 || eventId <= 0 || ticketName == null || ticketName.trim().isEmpty() || price == null) {
+            throw new SQLException("MissingFields");
+        }
+        if (price.compareTo(BigDecimal.ZERO) < 0) {
+            throw new SQLException("InvalidAssignment");
+        }
+        if (!existsById(eventId, "event", "eventID") || !existsById(ticketId, "ticket", "ticketID")) {
+            throw new SQLException("InvalidAssignment");
+        }
+
+        String normalizedName = normalizeOptionalText(ticketName, 45);
+        if (normalizedName == null || normalizedName.isEmpty()) {
+            throw new SQLException("MissingFields");
+        }
+
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            int soldCount = 0;
+            try (PreparedStatement soldPs = conn.prepareStatement("SELECT COUNT(*) FROM attendee_has_ticket WHERE ticketID = ?")) {
+                soldPs.setInt(1, ticketId);
+                try (ResultSet rs = soldPs.executeQuery()) {
+                    if (rs.next()) {
+                        soldCount = rs.getInt(1);
+                    }
+                }
+            }
+            if (soldCount > 0) {
+                throw new SQLException("TicketHasSales");
+            }
+
+            conn.setAutoCommit(false);
+            try {
+                try (PreparedStatement updateTicketPs = conn.prepareStatement("UPDATE ticket SET name = ?, price = ? WHERE ticketID = ?")) {
+                    updateTicketPs.setString(1, normalizedName);
+                    updateTicketPs.setBigDecimal(2, price);
+                    updateTicketPs.setInt(3, ticketId);
+                    if (updateTicketPs.executeUpdate() <= 0) {
+                        conn.rollback();
+                        return false;
+                    }
+                }
+
+                try (PreparedStatement deleteMaps = conn.prepareStatement("DELETE FROM event_has_ticket WHERE ticketID = ?")) {
+                    deleteMaps.setInt(1, ticketId);
+                    deleteMaps.executeUpdate();
+                }
+
+                try (PreparedStatement insertMap = conn.prepareStatement("INSERT INTO event_has_ticket(eventID, ticketID) VALUES(?, ?)")) {
+                    insertMap.setInt(1, eventId);
+                    insertMap.setInt(2, ticketId);
+                    insertMap.executeUpdate();
+                }
+
+                logAudit(conn, adminId, "UPDATE_TICKET", "ticket", String.valueOf(ticketId),
+                        "Updated ticket details and event mapping");
+                conn.commit();
+                return true;
+            } catch (SQLException ex) {
+                conn.rollback();
+                throw ex;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        }
+    }
+
+    public boolean deleteTicket(int adminId, int ticketId) throws SQLException {
+        if (!isPrivilegedAdmin(adminId)) {
+            throw new SQLException("PrivilegedRequired");
+        }
+        if (ticketId <= 0) {
+            throw new SQLException("MissingFields");
+        }
+
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            int soldCount = 0;
+            try (PreparedStatement soldPs = conn.prepareStatement("SELECT COUNT(*) FROM attendee_has_ticket WHERE ticketID = ?")) {
+                soldPs.setInt(1, ticketId);
+                try (ResultSet rs = soldPs.executeQuery()) {
+                    if (rs.next()) {
+                        soldCount = rs.getInt(1);
+                    }
+                }
+            }
+            if (soldCount > 0) {
+                throw new SQLException("TicketHasSales");
+            }
+
+            int scanCount = 0;
+            try (PreparedStatement scanPs = conn.prepareStatement("SELECT COUNT(*) FROM scan_log WHERE ticketID = ?")) {
+                scanPs.setInt(1, ticketId);
+                try (ResultSet rs = scanPs.executeQuery()) {
+                    if (rs.next()) {
+                        scanCount = rs.getInt(1);
+                    }
+                }
+            }
+            if (scanCount > 0) {
+                throw new SQLException("TicketHasScans");
+            }
+
+            Integer qrCodeId = null;
+            try (PreparedStatement ps = conn.prepareStatement("SELECT QRcodeID FROM ticket WHERE ticketID = ?")) {
+                ps.setInt(1, ticketId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        qrCodeId = rs.getInt(1);
+                    }
+                }
+            }
+
+            conn.setAutoCommit(false);
+            try {
+                try (PreparedStatement ps = conn.prepareStatement("DELETE FROM eventmanager_has_ticket WHERE ticketID = ?")) {
+                    ps.setInt(1, ticketId);
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps = conn.prepareStatement("DELETE FROM event_has_ticket WHERE ticketID = ?")) {
+                    ps.setInt(1, ticketId);
+                    ps.executeUpdate();
+                }
+                int affected;
+                try (PreparedStatement ps = conn.prepareStatement("DELETE FROM ticket WHERE ticketID = ?")) {
+                    ps.setInt(1, ticketId);
+                    affected = ps.executeUpdate();
+                }
+                if (affected <= 0) {
+                    conn.rollback();
+                    return false;
+                }
+
+                if (qrCodeId != null && qrCodeId > 0) {
+                    try (PreparedStatement ps = conn.prepareStatement("DELETE FROM qrcode WHERE QRcodeID = ?")) {
+                        ps.setInt(1, qrCodeId);
+                        ps.executeUpdate();
+                    }
+                }
+
+                logAudit(conn, adminId, "DELETE_TICKET", "ticket", String.valueOf(ticketId), "Deleted ticket");
+                conn.commit();
+                return true;
+            } catch (SQLException ex) {
+                conn.rollback();
+                throw ex;
+            } finally {
+                conn.setAutoCommit(true);
+            }
         }
     }
 
@@ -2501,6 +2825,31 @@ public class AdminITDAO {
         try (Connection conn = DatabaseConnection.getConnection()) {
             return getAdminCampusVenueId(conn, adminId);
         }
+    }
+
+    private String normalizeOptionalText(String value, int maxLength) throws SQLException {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
+        if (normalized.isEmpty()) {
+            return null;
+        }
+        if (maxLength > 0 && normalized.length() > maxLength) {
+            throw new SQLException("InvalidAssignment");
+        }
+        return normalized;
+    }
+
+    private String normalizeEventStatus(String status) {
+        String normalized = status == null ? "ACTIVE" : status.trim().toUpperCase();
+        if (normalized.isEmpty()) {
+            normalized = "ACTIVE";
+        }
+        if (!"ACTIVE".equals(normalized) && !"CANCELLED".equals(normalized) && !"PASSED".equals(normalized)) {
+            return "ACTIVE";
+        }
+        return normalized;
     }
 
     private Integer getAdminCampusVenueId(Connection conn, int adminId) throws SQLException {

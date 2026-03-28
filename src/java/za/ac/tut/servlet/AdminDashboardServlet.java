@@ -1,7 +1,10 @@
 package za.ac.tut.servlet;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintWriter;
+import java.io.ByteArrayOutputStream;
+import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -9,13 +12,16 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import javax.servlet.ServletException;
+import javax.servlet.annotation.MultipartConfig;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
+import javax.servlet.http.Part;
 import za.ac.tut.databaseManagement.AdminITDAO;
 import za.ac.tut.notification.EmailService;
 
+@MultipartConfig(maxFileSize = 12 * 1024 * 1024)
 public class AdminDashboardServlet extends HttpServlet {
 
     private final AdminITDAO adminITDAO = new AdminITDAO();
@@ -160,14 +166,29 @@ public class AdminDashboardServlet extends HttpServlet {
 
             if ("createEvent".equals(action)) {
                 Timestamp eventTs = parseDateTimeLocal(req(request, "eventDate"));
-                boolean ok = adminITDAO.createEvent(
+                int createdEventId = adminITDAO.createEvent(
                         adminId,
                         req(request, "eventName"),
                         req(request, "eventType"),
                         eventTs,
-                        parseInt(req(request, "venueID"))
+                        parseInt(req(request, "venueID")),
+                        param(request, "eventDescription"),
+                        param(request, "eventInfoUrl"),
+                        param(request, "eventStatus")
                 );
-                redirectWithMsg(request, response, ok ? "EventCreated" : "NoChange");
+                    uploadEventCover(request, adminId, createdEventId, false);
+
+                String initialTicketName = param(request, "initialTicketName");
+                Integer initialTicketQty = parseOptionalInt(param(request, "initialTicketQuantity"));
+                BigDecimal initialTicketPrice = parseOptionalBigDecimal(param(request, "initialTicketPrice"));
+                if (createdEventId > 0
+                        && initialTicketName != null && !initialTicketName.isEmpty()
+                        && initialTicketQty != null && initialTicketQty > 0
+                        && initialTicketPrice != null) {
+                    adminITDAO.createTicketsForEvent(adminId, createdEventId, initialTicketName, initialTicketPrice, initialTicketQty);
+                }
+
+                redirectWithMsg(request, response, createdEventId > 0 ? "EventCreated" : "NoChange");
                 return;
             }
 
@@ -179,9 +200,49 @@ public class AdminDashboardServlet extends HttpServlet {
                         req(request, "eventName"),
                         req(request, "eventType"),
                         eventTs,
-                        parseInt(req(request, "venueID"))
+                        parseInt(req(request, "venueID")),
+                        param(request, "eventDescription"),
+                        param(request, "eventInfoUrl"),
+                        param(request, "eventStatus")
                 );
+                uploadEventCover(request, adminId, parseInt(req(request, "eventID")), false);
                 redirectWithMsg(request, response, ok ? "EventUpdated" : "NoChange");
+                return;
+            }
+
+            if ("uploadEventCoverOnly".equals(action)) {
+                uploadEventCover(request, adminId, parseInt(req(request, "eventID")), true);
+                redirectWithMsg(request, response, "EventCoverUpdated");
+                return;
+            }
+
+            if ("createTicket".equals(action)) {
+                boolean ok = adminITDAO.createTicketsForEvent(
+                        adminId,
+                        parseInt(req(request, "eventID")),
+                        req(request, "ticketName"),
+                        parseBigDecimal(req(request, "ticketPrice")),
+                        parseInt(req(request, "ticketQuantity"))
+                );
+                redirectWithMsg(request, response, ok ? "TicketCreated" : "NoChange");
+                return;
+            }
+
+            if ("updateTicket".equals(action)) {
+                boolean ok = adminITDAO.updateTicket(
+                        adminId,
+                        parseInt(req(request, "ticketID")),
+                        parseInt(req(request, "eventID")),
+                        req(request, "ticketName"),
+                        parseBigDecimal(req(request, "ticketPrice"))
+                );
+                redirectWithMsg(request, response, ok ? "TicketUpdated" : "NoChange");
+                return;
+            }
+
+            if ("deleteTicket".equals(action)) {
+                boolean ok = adminITDAO.deleteTicket(adminId, parseInt(req(request, "ticketID")));
+                redirectWithMsg(request, response, ok ? "TicketDeleted" : "NoChange");
                 return;
             }
 
@@ -419,6 +480,18 @@ public class AdminDashboardServlet extends HttpServlet {
                 redirectWithErr(request, response, "EventHasSales");
                 return;
             }
+            if (ex.getMessage() != null && ex.getMessage().contains("TicketHasSales")) {
+                redirectWithErr(request, response, "TicketHasSales");
+                return;
+            }
+            if (ex.getMessage() != null && ex.getMessage().contains("TicketHasScans")) {
+                redirectWithErr(request, response, "TicketHasScans");
+                return;
+            }
+            if (ex.getMessage() != null && ex.getMessage().contains("InvalidImage")) {
+                redirectWithErr(request, response, "InvalidImage");
+                return;
+            }
             if (ex.getMessage() != null && ex.getMessage().toLowerCase().contains("invalid")) {
                 redirectWithErr(request, response, "InvalidAssignment");
                 return;
@@ -486,6 +559,7 @@ public class AdminDashboardServlet extends HttpServlet {
         request.setAttribute("rootPasswordStatus", adminITDAO.getRootPasswordStatusForAdmin(adminId));
         request.setAttribute("isPrivilegedAdmin", isPrivilegedAdmin);
         request.setAttribute("adminCampusDisplayName", adminCampusDisplayName);
+        request.setAttribute("ticketRows", adminITDAO.getTicketControlRowsForScope(adminId));
         request.setAttribute("ticketIntelligence", adminITDAO.getTicketIntelligenceForScope(adminId));
         request.setAttribute("campusRevenue", adminITDAO.getCampusRevenueReportForScope(adminId));
         request.setAttribute("campusOwnership", adminITDAO.getCampusOwnershipReportForScope(adminId));
@@ -583,6 +657,72 @@ public class AdminDashboardServlet extends HttpServlet {
         return parsed;
     }
 
+    private BigDecimal parseBigDecimal(String value) {
+        try {
+            return new BigDecimal(value.trim());
+        } catch (RuntimeException ex) {
+            throw new IllegalArgumentException("Invalid decimal");
+        }
+    }
+
+    private BigDecimal parseOptionalBigDecimal(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        return parseBigDecimal(value);
+    }
+
+        private void uploadEventCover(HttpServletRequest request, int adminId, int eventId, boolean required)
+                throws IOException, ServletException, SQLException {
+        if (eventId <= 0) {
+            return;
+        }
+        Part imagePart;
+        try {
+            imagePart = request.getPart("eventAlbumImage");
+        } catch (IllegalStateException ex) {
+            throw new SQLException("InvalidImage");
+        }
+        if (imagePart == null || imagePart.getSize() <= 0) {
+            if (required) {
+                throw new SQLException("InvalidImage");
+            }
+            return;
+        }
+
+        String submittedName = imagePart.getSubmittedFileName();
+        String mimeType = imagePart.getContentType();
+        String guessedMimeType = submittedName == null ? null : java.net.URLConnection.guessContentTypeFromName(submittedName);
+        String normalizedMimeType = mimeType == null ? "" : mimeType.trim().toLowerCase();
+        if (!normalizedMimeType.startsWith("image/") && guessedMimeType != null && guessedMimeType.toLowerCase().startsWith("image/")) {
+            mimeType = guessedMimeType;
+            normalizedMimeType = guessedMimeType.toLowerCase();
+        }
+        if (!normalizedMimeType.startsWith("image/")) {
+            throw new SQLException("InvalidImage");
+        }
+
+        byte[] bytes;
+        try (InputStream in = imagePart.getInputStream()) {
+            bytes = readBytes(in);
+        }
+        if (bytes == null || bytes.length == 0) {
+            throw new SQLException("InvalidImage");
+        }
+
+        adminITDAO.updateEventAlbumImageForScope(adminId, eventId, submittedName, mimeType, bytes);
+    }
+
+    private byte[] readBytes(InputStream input) throws IOException {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        byte[] buffer = new byte[8192];
+        int read;
+        while ((read = input.read(buffer)) != -1) {
+            output.write(buffer, 0, read);
+        }
+        return output.toByteArray();
+    }
+
     private void applyAutomaticRetiredEventCleanup(HttpServletRequest request) {
         try {
             Object adminIdObj = request.getSession().getAttribute("userID");
@@ -621,6 +761,10 @@ public class AdminDashboardServlet extends HttpServlet {
                 || "resolveRefundCase".equals(action)
                 || "createEvent".equals(action)
                 || "updateEvent".equals(action)
+                || "uploadEventCoverOnly".equals(action)
+                || "createTicket".equals(action)
+                || "updateTicket".equals(action)
+                || "deleteTicket".equals(action)
                 || "deleteEvent".equals(action)
                 || "deleteUser".equals(action)
                 || "updateUser".equals(action)
@@ -633,7 +777,10 @@ public class AdminDashboardServlet extends HttpServlet {
                 || "purgeScanLogs".equals(action)
                 || "cleanupRetiredEvents".equals(action)
                 || "runEmailHealthCheck".equals(action)
-                || "resolveDeleteRequest".equals(action);
+                || "resolveDeleteRequest".equals(action)
+                || "createTicket".equals(action)
+                || "updateTicket".equals(action)
+                || "deleteTicket".equals(action);
     }
 
     private boolean isPrivilegedOnlyAction(String action) {

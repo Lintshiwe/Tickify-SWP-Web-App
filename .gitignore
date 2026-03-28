@@ -29,3 +29,9 @@ database/
 *.jks
 *.keystore
 secrets/
+
+# Generated user guide artifacts
+docs/*.pdf
+docs/*.txt
+docs/*.ps
+docs/all_user_credentials.tsv
