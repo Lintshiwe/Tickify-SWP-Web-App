@@ -33,7 +33,7 @@ public class AuthAndRoleFlowIntegrationTest {
     public static void attendeeCredentialsAuthenticateForRole() throws Exception {
         UserDAO dao = new UserDAO();
 
-        String attendeeEmail = System.getProperty("tickify.test.attendee.email", "Ntoampilp@gmail.com").trim();
+        String attendeeEmail = System.getProperty("tickify.test.attendee.email", "ntoampi@student.ukzn.ac.za").trim();
         String attendeePassword = System.getProperty("tickify.test.attendee.password", "").trim();
 
         int uid = dao.getUserIDByIdentifier(attendeeEmail, "attendee", "attendeeID", true);
