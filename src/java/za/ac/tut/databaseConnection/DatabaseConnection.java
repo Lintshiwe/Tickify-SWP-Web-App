@@ -31,6 +31,10 @@ public class DatabaseConnection {
     }
 
     public static Connection getConnection() throws SQLException {
+        return ConnectionPoolManager.getInstance().getConnection();
+    }
+
+    static Connection createNewConnection() throws SQLException {
         String mode = DB_MODE == null ? "auto" : DB_MODE.trim().toLowerCase();
         if ("embedded".equals(mode)) {
             return connectEmbedded();
@@ -39,7 +43,6 @@ public class DatabaseConnection {
             return connectClient();
         }
 
-        // Auto mode: prefer client/server Derby, fallback to embedded when server is down.
         try {
             return connectClient();
         } catch (SQLException e) {

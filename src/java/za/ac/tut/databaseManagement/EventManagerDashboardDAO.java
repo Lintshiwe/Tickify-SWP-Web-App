@@ -287,6 +287,33 @@ public class EventManagerDashboardDAO {
         }
     }
 
+    public List<Map<String, Object>> getGuardScanActivity(int eventManagerId) throws SQLException {
+        String sql = "SELECT vg.firstname || ' ' || vg.lastname AS guardName, vg.email AS guardEmail, "
+                + "sl.result, sl.reason, sl.scannedAt, t.name AS ticketNumber, e.name AS eventName "
+                + "FROM event_manager em "
+                + "JOIN venue_guard vg ON vg.venueGuardID = em.venueGuardID "
+                + "LEFT JOIN scan_log sl ON sl.venueGuardID = vg.venueGuardID "
+                + "LEFT JOIN ticket t ON t.ticketID = sl.ticketID "
+                + "LEFT JOIN event e ON vg.eventID = e.eventID "
+                + "WHERE em.eventManagerID = ? "
+                + "ORDER BY sl.scannedAt DESC NULLS LAST";
+        return runListQuery(sql, eventManagerId);
+    }
+
+    public List<Map<String, Object>> getPresenterScheduleActivity(int eventManagerId) throws SQLException {
+        String sql = "SELECT tp.firstname || ' ' || tp.lastname AS presenterName, tp.email AS presenterEmail, "
+                + "psi.title AS sessionTitle, psi.startsAt, psi.endsAt, psi.room, psi.notes, "
+                + "e.name AS eventName "
+                + "FROM event_manager em "
+                + "JOIN event_has_manager ehm ON ehm.eventManagerID = em.eventManagerID "
+                + "JOIN event e ON e.eventID = ehm.eventID "
+                + "JOIN tertiary_presenter tp ON tp.eventID = e.eventID "
+                + "LEFT JOIN presenter_schedule_item psi ON psi.tertiaryPresenterID = tp.tertiaryPresenterID "
+                + "WHERE em.eventManagerID = ? "
+                + "ORDER BY psi.startsAt DESC NULLS LAST";
+        return runListQuery(sql, eventManagerId);
+    }
+
     private List<Map<String, Object>> runListQuery(String sql, int eventManagerId) throws SQLException {
         List<Map<String, Object>> rows = new ArrayList<>();
         try (Connection conn = DatabaseConnection.getConnection();

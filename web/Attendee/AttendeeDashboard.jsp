@@ -40,7 +40,7 @@
 
         .site-header {
             width:100%;
-            background:#f7f8f6;
+            background:#f7f8f6 url('${pageContext.request.contextPath}/assets/Tickify-header-background.png') center/cover no-repeat;
             border-bottom:1px solid #dfe5dc;
             position:sticky;
             top:0;
@@ -695,6 +695,7 @@
             position:relative;
             width:100%;
             margin-left:0;
+            min-height:280px;
         }
         .ad-track {
             display:flex;
@@ -704,17 +705,18 @@
         .ad-card {
             min-width:100%;
             position:relative;
-            height:330px;
+            min-height:200px;
             overflow:hidden;
             border-radius:inherit;
+            background:#d4e2ce;
         }
         .ad-image {
-            position:absolute;
-            inset:0;
             width:100%;
-            height:100%;
-            object-fit:cover;
+            height:auto;
+            min-height:200px;
             display:block;
+            border-radius:inherit;
+        }
         }
         .ad-image:hover {
             transform:none;
@@ -808,7 +810,7 @@
             }
             .cart-wrap { justify-self:start; }
             .ad-slider-wrap { width:100%; margin-left:0; }
-            .ad-card { height:240px; }
+            .ad-card { min-height:180px; }
             .cart-form, .wish-form { width:100%; }
             .actions { grid-template-columns:1fr; }
             .wish-form { justify-content:flex-start; }
@@ -851,28 +853,45 @@
                 </div>
 
                 <div class="profile-wrap">
-                    <button class="profile-btn" id="profileBtn" type="button" onclick="toggleProfileMenu()">
-                        <span class="profile-icon">P</span>
-                        <span class="profile-meta">${userFullName} | #${userID}</span>
-                    </button>
-                    <div class="profile-menu" id="profileMenu">
-                        <a href="AttendeeDashboardServlet.do">Dashboard</a>
-                        <a href="ViewMyTickets.do">My Tickets</a>
-                        <a href="MyOrderHistory.do">My Order History</a>
-                        <a href="AttendeeViewProfileServlet.do">Update Profile</a>
-                        <a href="javascript:void(0);" onclick="confirmDelete()">Delete Account</a>
-                        <a href="LogoutServlet.do" class="danger">Logout</a>
-                    </div>
+                    <c:choose>
+                        <c:when test="${not empty userID}">
+                            <button class="profile-btn" id="profileBtn" type="button" onclick="toggleProfileMenu()">
+                                <span class="profile-icon">P</span>
+                                <span class="profile-meta">${userFullName} | #${userID}</span>
+                            </button>
+                            <div class="profile-menu" id="profileMenu">
+                                <a href="AttendeeDashboardServlet.do">Dashboard</a>
+                                <a href="ViewMyTickets.do">My Tickets</a>
+                                <a href="MyOrderHistory.do">My Order History</a>
+                                <a href="AttendeeViewProfileServlet.do">Update Profile</a>
+                                <a href="javascript:void(0);" onclick="confirmDelete()">Delete Account</a>
+                                <a href="LogoutServlet.do" class="danger">Logout</a>
+                            </div>
+                        </c:when>
+                        <c:otherwise>
+                            <button class="profile-btn" id="profileBtn" type="button" onclick="toggleProfileMenu()" style="background:rgba(255,255,255,0.92);">
+                                <span class="profile-icon" style="background:var(--green);color:#fff;">☰</span>
+                                <span class="profile-meta">Account</span>
+                            </button>
+                            <div class="profile-menu" id="profileMenu">
+                                <a href="Login.jsp" style="font-weight:700;color:var(--green-dark);">Login</a>
+                                <a href="UserSignUp.jsp" style="font-weight:700;color:var(--green);">Sign Up</a>
+                            </div>
+                        </c:otherwise>
+                    </c:choose>
                 </div>
             </div>
 
             <div class="header-nav">
                 <div class="nav-links">
                     <a href="#allSection" onclick="switchView('all');return false;">EVENTS</a>
+                    <c:if test="${not empty userID}">
                     <a href="ViewMyTickets.do">MY TICKETS</a>
                     <a href="MyOrderHistory.do">MY ORDER HISTORY</a>
                     <a href="#wishlistSection" onclick="switchView('wishlist')">MY LIKES</a>
+                    </c:if>
                 </div>
+                <c:if test="${not empty userID}">
                 <div class="cart-wrap">
                     <div class="cart-chip" aria-label="Checkout total">
                         <span class="cart-icon" aria-hidden="true">🛒</span>
@@ -882,6 +901,7 @@
                     </div>
                     <a href="Checkout.do" class="checkout-btn" style="text-decoration:none;display:inline-block;">Checkout</a>
                 </div>
+                </c:if>
             </div>
         </div>
     </header>
@@ -893,32 +913,9 @@
                 <input id="eventSearch" type="text" placeholder="Search events, venue, city..." oninput="filterEvents(this.value)">
             </label>
         </div>
-        <main class="panel">
+         <main class="panel">
             <% String msg = request.getParameter("msg"); %>
             <% String err = request.getParameter("err"); %>
-
-            <section class="ad-slider-wrap" id="adSliderWrap">
-                <c:choose>
-                    <c:when test="${not empty adverts}">
-                        <div class="ad-track" id="adTrack">
-                            <c:forEach var="ad" items="${adverts}">
-                                <article class="ad-card">
-                                    <img class="ad-image" src="AdvertImage.do?id=${ad.advertID}" alt="${ad.title}">
-                                    <div class="ad-meta">
-                                        <h3>${ad.title}</h3>
-                                        <p>${ad.organizationName} | ${ad.venue} | ${ad.eventDate}</p>
-                                        <p>${ad.details}</p>
-                                    </div>
-                                </article>
-                            </c:forEach>
-                        </div>
-                        <div class="ad-dots" id="adDots"></div>
-                    </c:when>
-                    <c:otherwise>
-                        <article class="ad-card"><div class="ad-meta"><h3>Upcoming Adverts</h3><p>Paid organization adverts selected by admins will appear here.</p></div></article>
-                    </c:otherwise>
-                </c:choose>
-            </section>
 
             <div class="headline">
                 <h2>Event Discovery Hub</h2>
@@ -1147,12 +1144,16 @@
                 </section>
                 <section class="preview-section">
                     <h4>Ticket Actions</h4>
-                    <p id="previewStockNotice" style="margin:0 0 10px;color:#4f6250;">Pick number of tickets and add to cart without leaving this page.</p>
+                    <p id="previewStockNotice" style="margin:0 0 10px;color:#4f6250;">Choose ticket type and quantity.</p>
                     <div class="preview-actions">
+                        <select id="previewTicketType" style="width:100%;padding:8px;border:1px solid #d5e3d1;border-radius:8px;margin-bottom:8px;font:inherit;">
+                            <option value="">Loading ticket types...</option>
+                        </select>
                         <form action="BookTicket.do" method="POST" class="cart-form" id="previewCartForm">
                             <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                             <input type="hidden" name="action" value="add">
                             <input type="hidden" name="eventID" id="previewCartEventID" value="">
+                            <input type="hidden" name="ticketID" id="previewTicketID" value="">
                             <div class="qty-stepper">
                                 <button type="button" class="qty-minus" onclick="stepQty(this,-1)" aria-label="Decrease ticket quantity">-</button>
                                 <input type="number" name="quantity" min="1" value="1" class="qty-input" aria-label="Ticket quantity" readonly>
@@ -1495,7 +1496,44 @@
             modal.classList.remove('hidden');
             modal.setAttribute('aria-hidden', 'false');
             document.body.style.overflow = 'hidden';
+
+            fetchTicketTypes(eventId);
         }
+
+        function fetchTicketTypes(eventId) {
+            var select = document.getElementById('previewTicketType');
+            select.innerHTML = '<option value="">Loading...</option>';
+            fetch('AttendeeDashboardServlet.do?ajax=ticketTypes&eventID=' + eventId)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    select.innerHTML = '';
+                    if (data.ok && data.types && data.types.length > 0) {
+                        data.types.forEach(function(t) {
+                            var opt = document.createElement('option');
+                            opt.value = t.ticketID;
+                            opt.textContent = t.ticketType + ' - R ' + t.price.toFixed(2) + ' (' + t.availableCount + ' left)';
+                            opt.setAttribute('data-price', t.price);
+                            select.appendChild(opt);
+                        });
+                        select.dispatchEvent(new Event('change'));
+                    } else {
+                        select.innerHTML = '<option value="">No tickets available</option>';
+                    }
+                })
+                .catch(function() {
+                    select.innerHTML = '<option value="">Failed to load</option>';
+                });
+        }
+
+        document.getElementById('previewTicketType').addEventListener('change', function() {
+            var opt = this.options[this.selectedIndex];
+            var price = opt.getAttribute('data-price');
+            var ticketID = opt.value;
+            if (price) {
+                document.getElementById('previewEventPrice').textContent = 'R ' + parseFloat(price).toFixed(2);
+                document.getElementById('previewTicketID').value = ticketID;
+            }
+        });
         function closeEventPreview() {
             var modal = document.getElementById('eventPreviewModal');
             if (!modal) { return; }
@@ -1563,42 +1601,6 @@
                         showFloatingFlash((data && data.message) || 'Wishlist update failed', false);
                     }
                 });
-            });
-        }
-        var adIndex = 0;
-        var adTimer = null;
-        function renderAdDots(total) {
-            var dotsWrap = document.getElementById("adDots");
-            if (!dotsWrap) { return; }
-            dotsWrap.innerHTML = "";
-            for (var i = 0; i < total; i++) {
-                var dot = document.createElement("span");
-                dot.className = "ad-dot" + (i === adIndex ? " active" : "");
-                dotsWrap.appendChild(dot);
-            }
-        }
-        function moveAds() {
-            var track = document.getElementById("adTrack");
-            if (!track) { return; }
-            var slides = track.children.length;
-            if (slides <= 1) { return; }
-            adIndex = (adIndex + 1) % slides;
-            track.style.transform = "translateX(-" + (adIndex * 100) + "%)";
-            renderAdDots(slides);
-        }
-        function initAdSlider() {
-            var track = document.getElementById("adTrack");
-            if (!track) { return; }
-            var slides = track.children.length;
-            renderAdDots(slides);
-            if (slides <= 1) { return; }
-            var wrap = document.getElementById("adSliderWrap");
-            adTimer = setInterval(moveAds, 3800);
-            wrap.addEventListener("mouseenter", function () {
-                if (adTimer) { clearInterval(adTimer); adTimer = null; }
-            });
-            wrap.addEventListener("mouseleave", function () {
-                if (!adTimer) { adTimer = setInterval(moveAds, 3800); }
             });
         }
         function toggleProfileMenu() {
@@ -1715,7 +1717,6 @@
         }
         function initDashboardState() {
             hydrateTypeFilter();
-            initAdSlider();
             initAjaxActions();
             ensureWishlistEmptyState();
             document.querySelectorAll('.event-card').forEach(function (card) {

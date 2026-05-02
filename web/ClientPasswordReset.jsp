@@ -12,6 +12,7 @@
             * { box-sizing:border-box; }
             body { margin:0; min-height:100vh; font-family:"Trebuchet MS","Segoe UI",sans-serif; color:var(--ink); background:radial-gradient(circle at 10% 0%, #eef8e9 0%, transparent 35%), var(--bg); display:flex; flex-direction:column; }
             header, footer { background:#fff; border-bottom:1px solid var(--line); text-align:center; padding:18px; }
+            header { background:#f7f8f6 url('${pageContext.request.contextPath}/assets/Tickify-header-background.png') center/cover no-repeat; }
             footer { margin-top:auto; border-top:1px solid var(--line); border-bottom:none; color:var(--muted); }
             .gold { color:var(--green-dark); }
             main { flex:1; display:grid; place-items:center; padding:20px; }
@@ -38,8 +39,12 @@
         <header><h1><span class="gold">TICKIFY</span> CLIENT PASSWORD RESET</h1></header>
         <main>
             <div class="card">
-                <p>Request a signed reset token by email and complete password reset for attendee or presenter accounts.</p>
-
+                <c:set var="statusMsg" value="${param.msg}" />
+                <c:set var="errorMsg" value="${param.err}" />
+                <c:if test="${statusMsg == 'ResetEmailSent'}"><div class="status">A password reset email has been sent to your account if it exists.</div></c:if>
+                <c:if test="${errorMsg == 'InvalidRequest'}"><div class="error">Choose a client role and enter your username or email.</div></c:if>
+                <c:if test="${errorMsg == 'TokenError'}"><div class="error">Unable to generate reset token right now.</div></c:if>
+                <c:if test="${errorMsg == 'EmailSendFailed'}"><div class="error">Unable to send reset email right now. Please try again later.</div></c:if>
                 <c:if test="${not empty error}"><div class="error">${error}</div></c:if>
                 <c:if test="${not empty status}"><div class="status">${status}</div></c:if>
                 <c:if test="${not empty fallbackResetLink}">

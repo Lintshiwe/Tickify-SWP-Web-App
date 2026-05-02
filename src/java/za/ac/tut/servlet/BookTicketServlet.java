@@ -67,10 +67,18 @@ public class BookTicketServlet extends HttpServlet {
             }
 
             int quantity;
+            int ticketId = 0;
             try {
                 quantity = Math.max(1, Integer.parseInt(request.getParameter("quantity")));
             } catch (NumberFormatException e) {
                 quantity = 1;
+            }
+            try {
+                String tidParam = request.getParameter("ticketID");
+                if (tidParam != null && !tidParam.trim().isEmpty()) {
+                    ticketId = Integer.parseInt(tidParam.trim());
+                }
+            } catch (NumberFormatException ignored) {
             }
 
             try {
@@ -82,6 +90,16 @@ public class BookTicketServlet extends HttpServlet {
                     }
                     redirectWithStatus(request, response, returnTo, "err=InvalidEvent");
                     return;
+                }
+
+                double price = ((Number) eventInfo.get("price")).doubleValue();
+                String ticketType = "General Admission";
+                if (ticketId > 0) {
+                    Map<String, Object> ticketInfo = attendeeDAO.getTicketInfo(ticketId);
+                    if (ticketInfo != null) {
+                        price = ((Number) ticketInfo.get("price")).doubleValue();
+                        ticketType = (String) ticketInfo.get("ticketType");
+                    }
                 }
 
                 int availableStock = attendeeDAO.countAvailableTicketStockForEvent(eventId);
@@ -109,12 +127,17 @@ public class BookTicketServlet extends HttpServlet {
                     line = new HashMap<>();
                     line.put("eventID", eventId);
                     line.put("eventName", eventInfo.get("name"));
-                    line.put("price", eventInfo.get("price"));
+                    line.put("price", price);
+                    line.put("ticketID", ticketId);
+                    line.put("ticketType", ticketType);
                     line.put("quantity", quantity);
                     cart.put(eventId, line);
                 } else {
                     int currentQty = (Integer) line.get("quantity");
                     line.put("quantity", currentQty + quantity);
+                    line.put("ticketID", ticketId);
+                    line.put("ticketType", ticketType);
+                    line.put("price", price);
                 }
 
                 if (ajax) {

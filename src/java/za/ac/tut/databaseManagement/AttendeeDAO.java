@@ -160,7 +160,8 @@ public class AttendeeDAO {
         String sql = "SELECT t.ticketID, t.name AS ticketNumber, t.price, q.barstring, "
             + "e.eventID, "
             + "e.name AS eventName, e.type, e.date, v.name AS venueName, v.address, "
-            + "a.firstname, a.lastname, a.email, a.tertiaryInstitution "
+            + "a.firstname, a.lastname, a.email, a.tertiaryInstitution, "
+            + "(SELECT MIN(s.scannedAt) FROM scan_log s WHERE s.ticketID = t.ticketID AND s.result = 'VALID') AS scannedAt "
             + "FROM attendee_has_ticket aht "
             + "JOIN ticket t ON aht.ticketID = t.ticketID "
             + "JOIN qrcode q ON t.QRcodeID = q.QRcodeID "
@@ -194,7 +195,10 @@ public class AttendeeDAO {
                     String authToken = deriveAuthToken(rs.getString("ticketNumber"), rs.getString("barstring"), rs.getString("email"));
                     ticket.put("authToken", authToken);
                     ticket.put("scannableCode", rs.getString("barstring") + "|AUTH=" + authToken);
-                    ticket.put("status", "CONFIRMED");
+                    Timestamp scannedAt = rs.getTimestamp("scannedAt");
+                    ticket.put("scanned", scannedAt != null);
+                    ticket.put("scannedAt", scannedAt);
+                    ticket.put("status", scannedAt != null ? "SCANNED" : "CONFIRMED");
                     tickets.add(ticket);
                 }
             }
@@ -237,6 +241,7 @@ public class AttendeeDAO {
                     ticket.put("ticketNumber", rs.getString("ticketNumber"));
                     ticket.put("price", rs.getDouble("price"));
                     ticket.put("qrCode", rs.getString("barstring"));
+                    ticket.put("eventImageUrl", "EventAlbumImage.do?eventID=" + rs.getInt("eventID"));
                     tickets.add(ticket);
                 }
             }
@@ -502,6 +507,52 @@ public class AttendeeDAO {
             }
         }
         return 0;
+    }
+
+    public List<Map<String, Object>> getTicketTypesForEvent(int eventID) throws SQLException {
+        List<Map<String, Object>> types = new ArrayList<>();
+        String sql = "SELECT DISTINCT t.ticketID, t.name AS ticketType, t.price, "
+                + "(SELECT COUNT(*) FROM ticket t2 JOIN event_has_ticket eht2 ON eht2.ticketID = t2.ticketID "
+                + " WHERE eht2.eventID = ? AND t2.name = t.name AND t2.ticketID NOT IN "
+                + " (SELECT aht.ticketID FROM attendee_has_ticket aht)) AS availableCount "
+                + "FROM ticket t "
+                + "JOIN event_has_ticket eht ON eht.ticketID = t.ticketID "
+                + "WHERE eht.eventID = ? "
+                + "ORDER BY t.price ASC";
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, eventID);
+            ps.setInt(2, eventID);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Map<String, Object> t = new HashMap<>();
+                    t.put("ticketID", rs.getInt("ticketID"));
+                    t.put("ticketType", rs.getString("ticketType"));
+                    t.put("price", rs.getDouble("price"));
+                    t.put("availableCount", rs.getInt("availableCount"));
+                    types.add(t);
+                }
+            }
+        }
+        return types;
+    }
+
+    public Map<String, Object> getTicketInfo(int ticketID) throws SQLException {
+        String sql = "SELECT t.ticketID, t.name AS ticketType, t.price FROM ticket t WHERE t.ticketID = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, ticketID);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    Map<String, Object> t = new HashMap<>();
+                    t.put("ticketID", rs.getInt("ticketID"));
+                    t.put("ticketType", rs.getString("ticketType"));
+                    t.put("price", rs.getDouble("price"));
+                    return t;
+                }
+            }
+        }
+        return null;
     }
 
     public Map<String, Object> getEventCartDetails(int eventID) throws SQLException {

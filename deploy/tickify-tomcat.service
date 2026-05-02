@@ -1,0 +1,17 @@
+[Unit]
+Description=Tickify Tomcat Server
+After=network.target
+
+[Service]
+Type=forking
+User=ubuntu
+Group=ubuntu
+Environment=JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+ExecStart=/bin/bash /opt/tickify/tomcat/bin/startup.sh
+ExecStop=/bin/bash /opt/tickify/tomcat/bin/shutdown.sh
+PIDFile=/opt/tickify/tomcat/work/catalina.pid
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target

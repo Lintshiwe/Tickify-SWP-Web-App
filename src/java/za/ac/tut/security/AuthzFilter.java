@@ -23,6 +23,7 @@ public class AuthzFilter implements Filter {
 
     private static final Set<String> PUBLIC_PATHS = new HashSet<>(Arrays.asList(
             "/index.html",
+            "/index.jsp",
             "/Login.jsp",
             "/UserSelection.jsp",
             "/UserSignUp.jsp",
@@ -31,7 +32,11 @@ public class AuthzFilter implements Filter {
             "/RegistrationServlet.do",
             "/ClientPasswordReset.do",
             "/LogoutServlet.do",
-            "/AdvertImage.do"
+            "/AdvertImage.do",
+            "/EventAlbumImage.do",
+            "/AttendeeDashboardServlet.do",
+            "/Attendee/AttendeeDashboard.jsp",
+            "/Wishlist.do"
     ));
 
     @Override
@@ -94,11 +99,11 @@ public class AuthzFilter implements Filter {
         if (uri.startsWith("/Admin/")) {
             return "ADMIN";
         }
-        if (uri.startsWith("/Attendee/") || uri.equals("/AttendeeDashboardServlet.do")
-                || uri.equals("/ViewMyTickets.do") || uri.equals("/AttendeeViewProfileServlet.do")
+        if (uri.startsWith("/Attendee/") || uri.equals("/ViewMyTickets.do")
+                || uri.equals("/AttendeeViewProfileServlet.do")
                 || uri.equals("/AttendeeDeleteProfileServlet.do") || uri.equals("/BookTicket.do")
                 || uri.equals("/MyOrderHistory.do")
-                || uri.equals("/Wishlist.do") || uri.equals("/Checkout.do")
+                || uri.equals("/Checkout.do")
                 || uri.equals("/PaymentGateway.do")) {
             return "ATTENDEE";
         }
@@ -133,7 +138,7 @@ public class AuthzFilter implements Filter {
             return "VENUE_GUARD";
         }
         if (uri.equals("/ValidateTicketServlet.do")) {
-            return "VENUE_GUARD";
+            return null;
         }
         return null;
     }

@@ -14,11 +14,26 @@ import za.ac.tut.databaseManagement.UserDAO;
 
 public class AuthAndRoleFlowIntegrationTest {
 
-    private static final String[] DB_CANDIDATES = new String[]{
-        "/home/lintshiwe/.netbeans-derby/tickifyDB",
-        "/home/lintshiwe/GlassFish_Server/glassfish/databases/tickifyDB",
-        "/home/lintshiwe/GlassFish_Server/glassfish/domains/domain1/config/tickifyDB"
-    };
+    private static final String[] DB_CANDIDATES = resolveDatabaseCandidates();
+
+    private static String[] resolveDatabaseCandidates() {
+        String envPath = System.getenv("TICKIFY_TEST_DB_PATH");
+        if (envPath != null && !envPath.trim().isEmpty()) {
+            return new String[]{ envPath.trim() };
+        }
+        String propPath = System.getProperty("tickify.test.db.path");
+        if (propPath != null && !propPath.trim().isEmpty()) {
+            return new String[]{ propPath.trim() };
+        }
+        String userHome = System.getProperty("user.home");
+        String glassfishHome = System.getProperty("tickify.glassfish.home",
+                System.getenv().getOrDefault("GLASSFISH_HOME", userHome + "/GlassFish_Server"));
+        return new String[]{
+            userHome + "/.netbeans-derby/tickifyDB",
+            glassfishHome + "/glassfish/databases/tickifyDB",
+            glassfishHome + "/glassfish/domains/domain1/config/tickifyDB"
+        };
+    }
 
     private static String dbPath;
 
@@ -38,11 +53,11 @@ public class AuthAndRoleFlowIntegrationTest {
     public static void seededRoleCredentialsAuthenticate() throws Exception {
         UserDAO dao = new UserDAO();
 
-        assertRoleLogin(dao, "ADMIN", "thabo@tickify.ac.za", "pass1234", false);
-        assertRoleLogin(dao, "EVENT_MANAGER", "mgr1@tickify.ac.za", "mgr001", false);
-        assertRoleLogin(dao, "VENUE_GUARD", "guard1@tickify.ac.za", "guard001", false);
-        assertRoleLogin(dao, "TERTIARY_PRESENTER", "pzulu@dut.ac.za", "pres001", true);
-        assertRoleLogin(dao, "ATTENDEE", "ntoampi@student.ukzn.ac.za", "att002", true);
+        assertRoleLogin(dao, "ADMIN", "ntoampilp@gmail.com", "sudoAdmin1", false);
+        assertRoleLogin(dao, "EVENT_MANAGER", "ntoampilp@gmail.com", "manager1", false);
+        assertRoleLogin(dao, "VENUE_GUARD", "ntoampilp@gmail.com", "guard1", false);
+        assertRoleLogin(dao, "TERTIARY_PRESENTER", "ntoampilp@gmail.com", "presenter1", true);
+        assertRoleLogin(dao, "ATTENDEE", "ntoampilp@gmail.com", "attendee1", true);
 
         System.out.println("Seeded role credential checks passed for ADMIN, EVENT_MANAGER, VENUE_GUARD, TERTIARY_PRESENTER, ATTENDEE.");
     }

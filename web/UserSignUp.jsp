@@ -11,6 +11,7 @@
             * { box-sizing:border-box; }
             body { margin:0; min-height:100vh; font-family:"Trebuchet MS","Segoe UI",sans-serif; color:var(--ink); background:radial-gradient(circle at 10% 0%, #eef8e9 0%, transparent 35%), var(--bg); display:flex; flex-direction:column; }
             header, footer { background:#fff; border-bottom:1px solid var(--line); text-align:center; padding:18px; }
+            header { background:#f7f8f6 url('${pageContext.request.contextPath}/assets/Tickify-header-background.png') center/cover no-repeat; }
             footer { margin-top:auto; border-top:1px solid var(--line); border-bottom:none; color:var(--muted); }
             .yellow { color:var(--green-dark); }
             main { flex:1; display:grid; place-items:center; padding:20px; }

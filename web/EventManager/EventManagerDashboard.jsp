@@ -296,6 +296,35 @@
                     </table>
                 </div>
             </section>
+
+            <section class="card full">
+                <h2>Guard Scan Activity Log</h2>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Guard</th><th>Result</th><th>Ticket</th><th>Event</th><th>Time</th></tr></thead>
+                        <tbody>
+                            <c:forEach var="sl" items="${guardScanActivity}">
+                                <tr><td>${sl.guardName}</td><td>${sl.result}</td><td>${sl.ticketNumber}</td><td>${sl.eventName}</td><td>${sl.scannedAt}</td></tr>
+                            </c:forEach>
+                            <c:if test="${empty guardScanActivity}"><tr><td colspan="5">No scan activity recorded yet.</td></tr></c:if>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            <section class="card full">
+                <h2>Presenter Schedule Monitor</h2>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Presenter</th><th>Session</th><th>Starts</th><th>Ends</th><th>Room</th></tr></thead>
+                        <tbody>
+                            <c:forEach var="ps" items="${presenterScheduleActivity}">
+                                <tr><td>${ps.presenterName}</td><td>${ps.sessionTitle}</td><td>${ps.startsAt}</td><td>${ps.endsAt}</td><td>${ps.room}</td></tr>
+                            </c:forEach>
+                            <c:if test="${empty presenterScheduleActivity}"><tr><td colspan="5">No schedule activity yet.</td></tr></c:if>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
         </div>
     </div>
     <script>

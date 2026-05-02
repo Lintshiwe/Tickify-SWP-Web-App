@@ -26,7 +26,6 @@ public class DatabaseInitializer {
             ensureRootPasswordConfig(conn);
             seedData(conn);
             repairRoleCredentials(conn);
-            ensureAdditionalCampusAttendees(conn, 100);
             seedAdverts(conn);
             System.out.println("Tickify DB initialized successfully.");
         } catch (SQLException e) {
@@ -508,35 +507,11 @@ public class DatabaseInitializer {
         migrateLegacyPasswords(conn, "tertiary_presenter", "tertiaryPresenterID");
 
         // Enforce known seeded credentials so role smoke logins remain reliable.
-        enforceSeededPassword(conn, "admin", "admin@tickify.ac.za", "admin123");
-        enforceSeededPassword(conn, "admin", "thabo@tickify.ac.za", "pass1234");
-        enforceSeededPassword(conn, "admin", "lerato@tickify.ac.za", "pass5678");
-        enforceSeededPassword(conn, "admin", "sipho@tickify.ac.za", "pass9012");
-        enforceSeededPassword(conn, "admin", "nomsa@tickify.ac.za", "pass3456");
-
-        enforceSeededPassword(conn, "attendee", "lekwene@student.dut.ac.za", "att001");
-        enforceSeededPassword(conn, "attendee", "ntoampi@student.ukzn.ac.za", "att002");
-        enforceSeededPassword(conn, "attendee", "mokoena@student.wits.ac.za", "att003");
-        enforceSeededPassword(conn, "attendee", "sosiba@student.uj.ac.za", "att004");
-        enforceSeededPassword(conn, "attendee", "mngadi@student.cput.ac.za", "att005");
-
-        enforceSeededPassword(conn, "venue_guard", "guard1@tickify.ac.za", "guard001");
-        enforceSeededPassword(conn, "venue_guard", "guard2@tickify.ac.za", "guard002");
-        enforceSeededPassword(conn, "venue_guard", "guard3@tickify.ac.za", "guard003");
-        enforceSeededPassword(conn, "venue_guard", "guard4@tickify.ac.za", "guard004");
-        enforceSeededPassword(conn, "venue_guard", "guard5@tickify.ac.za", "guard005");
-
-        enforceSeededPassword(conn, "event_manager", "mgr1@tickify.ac.za", "mgr001");
-        enforceSeededPassword(conn, "event_manager", "mgr2@tickify.ac.za", "mgr002");
-        enforceSeededPassword(conn, "event_manager", "mgr3@tickify.ac.za", "mgr003");
-        enforceSeededPassword(conn, "event_manager", "mgr4@tickify.ac.za", "mgr004");
-        enforceSeededPassword(conn, "event_manager", "mgr5@tickify.ac.za", "mgr005");
-
-        enforceSeededPassword(conn, "tertiary_presenter", "pzulu@dut.ac.za", "pres001");
-        enforceSeededPassword(conn, "tertiary_presenter", "dnaidoo@ukzn.ac.za", "pres002");
-        enforceSeededPassword(conn, "tertiary_presenter", "psmith@wits.ac.za", "pres003");
-        enforceSeededPassword(conn, "tertiary_presenter", "dbaloyi@uj.ac.za", "pres004");
-        enforceSeededPassword(conn, "tertiary_presenter", "pjacobs@cput.ac.za", "pres005");
+        enforceSeededPassword(conn, "admin", "ntoampilp@gmail.com", "sudoAdmin1");
+        enforceSeededPassword(conn, "attendee", "ntoampilp@gmail.com", "attendee1");
+        enforceSeededPassword(conn, "venue_guard", "ntoampilp@gmail.com", "guard1");
+        enforceSeededPassword(conn, "event_manager", "ntoampilp@gmail.com", "manager1");
+        enforceSeededPassword(conn, "tertiary_presenter", "ntoampilp@gmail.com", "presenter1");
     }
 
     private static void migrateLegacyPasswords(Connection conn, String tableName, String idColumn) throws SQLException {
@@ -579,9 +554,9 @@ public class DatabaseInitializer {
  
         // venues
         int[] venueIDs = new int[5];
-        String[] venueNames = {"DUT Sports Hall", "UKZN Great Hall", "Wits Amphitheatre", "UJ Auditorium", "CPUT Stadium"};
-        String[] venueAddrs  = {"1 Steve Biko Rd, Durban", "Howard College, Durban", "1 Jan Smuts Ave, Johannesburg",
-                                "55 Kingsway Ave, Auckland Park", "Symphony Way, Bellville"};
+        String[] venueNames = {"TUT Main Hall","TUT Sports Complex","TUT Amphitheatre","TUT Student Centre","TUT Great Hall"};
+        String[] venueAddrs  = {"TUT Pretoria Campus, Staatsartillerie Rd","TUT Ga-Rankuwa Campus","TUT eMalahleni Campus",
+                                "TUT Pretoria West Campus","TUT Soshanguve Campus"};
         PreparedStatement pv = conn.prepareStatement("INSERT INTO venue(name,address) VALUES(?,?)", Statement.RETURN_GENERATED_KEYS);
         for (int i = 0; i < 5; i++) {
             pv.setString(1, venueNames[i]);
@@ -594,11 +569,11 @@ public class DatabaseInitializer {
         // events
         int[] eventIDs = new int[5];
         String[][] events = {
-            {"Tech Summit 2026","Conference","2026-06-15 09:00:00"},
-            {"Music Fiesta","Concert","2026-07-20 18:00:00"},
-            {"Science Expo","Exhibition","2026-08-05 10:00:00"},
-            {"Cultural Day","Festival","2026-09-01 08:00:00"},
-            {"Sports Gala","Sports","2026-10-10 14:00:00"}
+            {"TUT Freshers Bash 2026","Festival","2026-06-15 18:00:00"},
+            {"TUT Tech Innovation Summit","Conference","2026-07-20 09:00:00"},
+            {"TUT Cultural Day 2026","Festival","2026-08-05 10:00:00"},
+            {"TUT Sports Tournament","Sports","2026-09-01 08:00:00"},
+            {"TUT Music & Arts Night","Concert","2026-10-10 17:00:00"}
         };
         PreparedStatement pe = conn.prepareStatement("INSERT INTO event(name,type,date,venueID) VALUES(?,?,?,?)", Statement.RETURN_GENERATED_KEYS);
         for (int i = 0; i < 5; i++) {
@@ -609,11 +584,12 @@ public class DatabaseInitializer {
         }
         pe.close();
  
-        // qrcodes
-        int[] qrIDs = new int[10];
+        // qrcodes - 50 per event × 5 events = 250
+        int[] qrIDs = new int[250];
         PreparedStatement pq = conn.prepareStatement("INSERT INTO qrcode(barstring,number) VALUES(?,?)", Statement.RETURN_GENERATED_KEYS);
-        for (int i = 0; i < 10; i++) {
-            pq.setString(1, "QR-" + System.currentTimeMillis() + "-" + i); pq.setInt(2, 1000 + i);
+        long seedTime = System.currentTimeMillis();
+        for (int i = 0; i < 250; i++) {
+            pq.setString(1, "QR-" + seedTime + "-" + i); pq.setInt(2, 2000 + i);
             pq.executeUpdate();
             try (ResultSet rs = pq.getGeneratedKeys()) { if (rs.next()) qrIDs[i] = rs.getInt(1); }
         }
@@ -621,140 +597,118 @@ public class DatabaseInitializer {
  
         // admin
         PreparedStatement pa = conn.prepareStatement("INSERT INTO admin(firstname,lastname,email,password,eventID) VALUES(?,?,?,?,?)");
-        String[][] admins = {
-            {"System","Admin","admin@tickify.ac.za","admin123"},
-            {"Thabo","Nkosi","thabo@tickify.ac.za","pass1234"},
-            {"Lerato","Dlamini","lerato@tickify.ac.za","pass5678"},
-            {"Sipho","Mokoena","sipho@tickify.ac.za","pass9012"},
-            {"Nomsa","Khumalo","nomsa@tickify.ac.za","pass3456"}
-        };
-        for (int i = 0; i < 5; i++) {
-            pa.setString(1,admins[i][0]); pa.setString(2,admins[i][1]);
-            pa.setString(3,admins[i][2]); pa.setString(4,PasswordUtil.hashPassword(admins[i][3])); pa.setInt(5,eventIDs[i]);
-            pa.executeUpdate();
-        }
+        pa.setString(1,"Ntoampi"); pa.setString(2,"LP");
+        pa.setString(3,"ntoampilp@gmail.com"); pa.setString(4,PasswordUtil.hashPassword("sudoAdmin1")); pa.setInt(5,eventIDs[0]);
+        pa.executeUpdate();
         pa.close();
  
-        // attendees
-        String[][] attendees = {
-            {"DUT","Lekwene","L","lekwene@student.dut.ac.za","att001"},
-            {"UKZN","Ntoampi","LP","ntoampi@student.ukzn.ac.za","att002"},
-            {"Wits","Mokoena","M","mokoena@student.wits.ac.za","att003"},
-            {"UJ","Sosiba","Z","sosiba@student.uj.ac.za","att004"},
-            {"CPUT","Mngadi","AM","mngadi@student.cput.ac.za","att005"}
-        };
-        int[] attIDs = new int[5];
+        // attendees - single user for all roles
+        int[] attIDs = new int[1];
         PreparedStatement patg = conn.prepareStatement("INSERT INTO attendee(username,clientType,tertiaryInstitution,phoneNumber,studentNumber,idPassportNumber,dateOfBirth,biography,firstname,lastname,email,password,qrcode_QRcodeID) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)", Statement.RETURN_GENERATED_KEYS);
-        for (int i = 0; i < 5; i++) {
-            patg.setString(1,("attendee" + (i + 1)));
-            patg.setString(2,"STUDENT");
-            patg.setString(3,attendees[i][0]);
-            patg.setString(4,"000000000" + i);
-            patg.setString(5,"STD-2026-" + (100 + i));
-            patg.setString(6,"ID-ATT-" + (1000 + i));
-            patg.setDate(7,Date.valueOf("2000-01-0" + (i + 1)));
-            patg.setString(8,"Seeded attendee account for testing profile traceability.");
-            patg.setString(9,attendees[i][1]);
-            patg.setString(10,attendees[i][2]);
-            patg.setString(11,attendees[i][3]);
-            patg.setString(12,PasswordUtil.hashPassword(attendees[i][4]));
-            patg.setInt(13,qrIDs[i]);
-            patg.executeUpdate();
-            try (ResultSet rs = patg.getGeneratedKeys()) { if (rs.next()) attIDs[i] = rs.getInt(1); }
-        }
+        patg.setString(1,"ntoampilp");
+        patg.setString(2,"STUDENT");
+        patg.setString(3,"TUT");
+        patg.setString(4,"0123456789");
+        patg.setString(5,"STD-2026-001");
+        patg.setString(6,"ID-NTOAMPI-001");
+        patg.setDate(7,Date.valueOf("2000-01-01"));
+        patg.setString(8,"Tickify multi-role user account.");
+        patg.setString(9,"Ntoampi");
+        patg.setString(10,"LP");
+        patg.setString(11,"ntoampilp@gmail.com");
+        patg.setString(12,PasswordUtil.hashPassword("attendee1"));
+        patg.setInt(13,qrIDs[0]);
+        patg.executeUpdate();
+        try (ResultSet rs = patg.getGeneratedKeys()) { if (rs.next()) attIDs[0] = rs.getInt(1); }
         patg.close();
  
-        // venue_guard
-        int[] guardIDs = new int[5];
+        // venue_guard - single user
+        int[] guardIDs = new int[1];
         PreparedStatement pg = conn.prepareStatement(
             "INSERT INTO venue_guard(firstname,lastname,email,password,eventID,venueID,QRcodeID) VALUES(?,?,?,?,?,?,?)",
             Statement.RETURN_GENERATED_KEYS);
-        String[][] guards = {
-            {"Guard","Alpha","guard1@tickify.ac.za","guard001"},
-            {"Guard","Bravo","guard2@tickify.ac.za","guard002"},
-            {"Guard","Charlie","guard3@tickify.ac.za","guard003"},
-            {"Guard","Delta","guard4@tickify.ac.za","guard004"},
-            {"Guard","Echo","guard5@tickify.ac.za","guard005"}
-        };
-        for (int i = 0; i < 5; i++) {
-            pg.setString(1,guards[i][0]); pg.setString(2,guards[i][1]);
-            pg.setString(3,guards[i][2]); pg.setString(4,PasswordUtil.hashPassword(guards[i][3]));
-            pg.setInt(5,eventIDs[i]); pg.setInt(6,venueIDs[i]); pg.setInt(7,qrIDs[5+i]);
-            pg.executeUpdate();
-            try (ResultSet rs = pg.getGeneratedKeys()) { if (rs.next()) guardIDs[i] = rs.getInt(1); }
-        }
+        pg.setString(1,"Ntoampi"); pg.setString(2,"LP");
+        pg.setString(3,"ntoampilp@gmail.com"); pg.setString(4,PasswordUtil.hashPassword("guard1"));
+        pg.setInt(5,eventIDs[0]); pg.setInt(6,venueIDs[0]); pg.setInt(7,qrIDs[5]);
+        pg.executeUpdate();
+        try (ResultSet rs = pg.getGeneratedKeys()) { if (rs.next()) guardIDs[0] = rs.getInt(1); }
         pg.close();
  
-        // event_manager
-        int[] managerIDs = new int[5];
+        // event_manager - single user
+        int[] managerIDs = new int[1];
         PreparedStatement pm = conn.prepareStatement(
             "INSERT INTO event_manager(firstname,lastname,email,password,venueGuardID) VALUES(?,?,?,?,?)",
             Statement.RETURN_GENERATED_KEYS);
-        String[][] managers = {
-            {"Manager","One","mgr1@tickify.ac.za","mgr001"},
-            {"Manager","Two","mgr2@tickify.ac.za","mgr002"},
-            {"Manager","Three","mgr3@tickify.ac.za","mgr003"},
-            {"Manager","Four","mgr4@tickify.ac.za","mgr004"},
-            {"Manager","Five","mgr5@tickify.ac.za","mgr005"}
-        };
-        for (int i = 0; i < 5; i++) {
-            pm.setString(1,managers[i][0]); pm.setString(2,managers[i][1]);
-            pm.setString(3,managers[i][2]); pm.setString(4,PasswordUtil.hashPassword(managers[i][3])); pm.setInt(5,guardIDs[i]);
-            pm.executeUpdate();
-            try (ResultSet rs = pm.getGeneratedKeys()) { if (rs.next()) managerIDs[i] = rs.getInt(1); }
-        }
+        pm.setString(1,"Ntoampi"); pm.setString(2,"LP");
+        pm.setString(3,"ntoampilp@gmail.com"); pm.setString(4,PasswordUtil.hashPassword("manager1")); pm.setInt(5,guardIDs[0]);
+        pm.executeUpdate();
+        try (ResultSet rs = pm.getGeneratedKeys()) { if (rs.next()) managerIDs[0] = rs.getInt(1); }
         pm.close();
  
-        // tertiary_presenter
+        // tertiary_presenter - single user
         PreparedStatement ptp = conn.prepareStatement(
             "INSERT INTO tertiary_presenter(username,firstname,lastname,email,password,tertiaryInstitution,phoneNumber,biography,eventID,venueID) VALUES(?,?,?,?,?,?,?,?,?,?)");
-        String[][] presenters = {
-            {"Prof","Zulu","pzulu@dut.ac.za","pres001","DUT"},
-            {"Dr","Naidoo","dnaidoo@ukzn.ac.za","pres002","UKZN"},
-            {"Prof","Smith","psmith@wits.ac.za","pres003","Wits"},
-            {"Dr","Baloyi","dbaloyi@uj.ac.za","pres004","UJ"},
-            {"Prof","Jacobs","pjacobs@cput.ac.za","pres005","CPUT"}
-        };
-        for (int i = 0; i < 5; i++) {
-            ptp.setString(1,("presenter" + (i + 1)));
-            ptp.setString(2,presenters[i][0]);
-            ptp.setString(3,presenters[i][1]);
-            ptp.setString(4,presenters[i][2]);
-            ptp.setString(5,PasswordUtil.hashPassword(presenters[i][3]));
-            ptp.setString(6,presenters[i][4]);
-            ptp.setString(7,"011000000" + i);
-            ptp.setString(8,"Seeded presenter account for testing profile traceability.");
-            ptp.setInt(9,eventIDs[i]);
-            ptp.setInt(10,venueIDs[i]);
-            ptp.executeUpdate();
-        }
+        ptp.setString(1,"ntoampilp");
+        ptp.setString(2,"Ntoampi");
+        ptp.setString(3,"LP");
+        ptp.setString(4,"ntoampilp@gmail.com");
+        ptp.setString(5,PasswordUtil.hashPassword("presenter1"));
+        ptp.setString(6,"TUT");
+        ptp.setString(7,"0123456789");
+        ptp.setString(8,"Multi-role presenter account.");
+        ptp.setInt(9,eventIDs[0]);
+        ptp.setInt(10,venueIDs[0]);
+        ptp.executeUpdate();
         ptp.close();
  
-        // tickets
-        int[] ticketIDs = new int[5];
+        // tickets - 50 per event (10 per type × 5 event types)
+        String[] tNames  = {"General Admission","VIP","Student","Early Bird","Group"};
+        double[][] tPrices = {
+            {80.00, 200.00, 40.00, 60.00, 150.00},   // Freshers Bash
+            {120.00, 350.00, 60.00, 90.00, 220.00},   // Tech Summit
+            {60.00, 150.00, 30.00, 45.00, 100.00},    // Cultural Day
+            {50.00, 120.00, 25.00, 35.00, 80.00},     // Sports Tournament
+            {90.00, 250.00, 50.00, 70.00, 180.00}     // Music & Arts Night
+        };
+        int qrIdx = 0;
+        
         PreparedStatement ptk = conn.prepareStatement(
             "INSERT INTO ticket(name,price,QRcodeID) VALUES(?,?,?)", Statement.RETURN_GENERATED_KEYS);
-        String[] tNames  = {"General Admission","VIP","Student","Early Bird","Group"};
-        double[] tPrices = {150.00, 350.00, 80.00, 120.00, 200.00};
-        for (int i = 0; i < 5; i++) {
-            ptk.setString(1,tNames[i]); ptk.setBigDecimal(2,new java.math.BigDecimal(tPrices[i])); ptk.setInt(3,qrIDs[i]);
-            ptk.executeUpdate();
-            try (ResultSet rs = ptk.getGeneratedKeys()) { if (rs.next()) ticketIDs[i] = rs.getInt(1); }
+        PreparedStatement jeht = conn.prepareStatement("INSERT INTO event_has_ticket(eventID,ticketID) VALUES(?,?)");
+        
+        for (int evtIdx = 0; evtIdx < 5; evtIdx++) {
+            for (int typeIdx = 0; typeIdx < 5; typeIdx++) {
+                for (int qty = 0; qty < 10; qty++) {
+                    ptk.setString(1, tNames[typeIdx]);
+                    ptk.setBigDecimal(2, new java.math.BigDecimal(tPrices[evtIdx][typeIdx]));
+                    ptk.setInt(3, qrIDs[qrIdx]);
+                    ptk.executeUpdate();
+                    try (ResultSet rs = ptk.getGeneratedKeys()) {
+                        if (rs.next()) {
+                            int ticketId = rs.getInt(1);
+                            jeht.setInt(1, eventIDs[evtIdx]);
+                            jeht.setInt(2, ticketId);
+                            jeht.executeUpdate();
+                        }
+                    }
+                    qrIdx++;
+                }
+            }
         }
         ptk.close();
+        jeht.close();
+
+        // seed event album images
+        seedEventAlbumImages(conn, eventIDs);
  
-        // junction rows
+        // junction rows - single user linked to all events
         PreparedStatement jahe = conn.prepareStatement("INSERT INTO attendee_has_event(attendeeID,eventID) VALUES(?,?)");
-        PreparedStatement jaht = conn.prepareStatement("INSERT INTO attendee_has_ticket(attendeeID,ticketID) VALUES(?,?)");
-        PreparedStatement jeht = conn.prepareStatement("INSERT INTO event_has_ticket(eventID,ticketID) VALUES(?,?)");
         PreparedStatement jehm = conn.prepareStatement("INSERT INTO event_has_manager(eventID,eventManagerID) VALUES(?,?)");
         for (int i = 0; i < 5; i++) {
-            jahe.setInt(1,attIDs[i]); jahe.setInt(2,eventIDs[i]); jahe.executeUpdate();
-            jaht.setInt(1,attIDs[i]); jaht.setInt(2,ticketIDs[i]); jaht.executeUpdate();
-            jeht.setInt(1,eventIDs[i]); jeht.setInt(2,ticketIDs[i]); jeht.executeUpdate();
-            jehm.setInt(1,eventIDs[i]); jehm.setInt(2,managerIDs[i]); jehm.executeUpdate();
+            jahe.setInt(1,attIDs[0]); jahe.setInt(2,eventIDs[i]); jahe.executeUpdate();
         }
-        jahe.close(); jaht.close(); jeht.close(); jehm.close();
+        jehm.setInt(1,eventIDs[0]); jehm.setInt(2,managerIDs[0]); jehm.executeUpdate();
+        jahe.close(); jehm.close();
  
         System.out.println("Seed data inserted successfully.");
     }
@@ -764,35 +718,68 @@ public class DatabaseInitializer {
             return;
         }
 
-        byte[] imageBytes = loadDefaultAdvertImage();
-        String mimeType = "image/svg+xml";
+        String filename = "TUT 2026 Event Series Collage.png";
+        byte[] imageBytes = loadAdvertImageFile(filename);
+        if (imageBytes == null) {
+            imageBytes = loadDefaultAdvertImage();
+        }
+        String mimeType = imageBytes != null && imageBytes.length > 4
+                && imageBytes[0] == (byte) 0x89 && imageBytes[1] == 'P' && imageBytes[2] == 'N' && imageBytes[3] == 'G'
+                ? "image/png" : "image/svg+xml";
 
         String sql = "INSERT INTO advert(organizationName, title, details, venue, eventDate, paidOrganization, selectedForDisplay, active, imageFilename, imageMimeType, imageData, createdAt) "
                 + "VALUES(?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)";
 
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, "TUT Campus");
-            ps.setString(2, "Freshers Ticket Sales Opening");
-            ps.setString(3, "Freshers event ticket sales open on 14 April.");
-            ps.setString(4, "TUT Emalahleni Sports Ground");
-            ps.setDate(5, Date.valueOf("2026-04-14"));
+            ps.setString(2, "TUT 2026 Event Series");
+            ps.setString(3, "Five major TUT campus events. Freshers Bash, Tech Summit, Cultural Day, Sports Tournament, and Music & Arts Night. Get your tickets now!");
+            ps.setString(4, "TUT Pretoria Campus");
+            ps.setDate(5, Date.valueOf("2026-06-15"));
             ps.setBoolean(6, true);
             ps.setBoolean(7, true);
             ps.setBoolean(8, true);
-            ps.setString(9, "tickify-logo.svg");
+            ps.setString(9, filename);
             ps.setString(10, mimeType);
             ps.setBytes(11, imageBytes);
             ps.executeUpdate();
         }
     }
 
-    private static byte[] loadDefaultAdvertImage() {
-        Path path = Paths.get("/home/lintshiwe/Downloads/tickify-logo.svg");
-        try {
-            if (Files.exists(path)) {
-                return Files.readAllBytes(path);
+    private static byte[] loadAdvertImageFile(String filename) {
+        String[] searchPaths = {
+            System.getProperty("catalina.base", "") + "/webapps/tickify/assets/" + filename,
+            System.getProperty("catalina.base", "") + "/webapps/Tickify-SWP-Web-App/assets/" + filename,
+            System.getProperty("user.dir", "") + "/web/assets/" + filename,
+            "/opt/tickify/tomcat/webapps/tickify/assets/" + filename
+        };
+        for (String path : searchPaths) {
+            java.io.File file = new java.io.File(path);
+            if (file.exists() && file.isFile()) {
+                try {
+                    return java.nio.file.Files.readAllBytes(file.toPath());
+                } catch (Exception e) {
+                    System.err.println("Failed to read advert image: " + path + " - " + e.getMessage());
+                }
             }
-        } catch (Exception ignored) {
+        }
+        System.err.println("Advert image not found: " + filename + " (tried assets/)");
+        return null;
+    }
+
+    private static byte[] loadDefaultAdvertImage() {
+        String customPath = System.getProperty("tickify.advert.defaultImage");
+        if (customPath == null || customPath.trim().isEmpty()) {
+            customPath = System.getenv("TICKIFY_ADVERT_DEFAULT_IMAGE");
+        }
+        if (customPath != null && !customPath.trim().isEmpty()) {
+            Path path = Paths.get(customPath.trim());
+            try {
+                if (Files.exists(path)) {
+                    return Files.readAllBytes(path);
+                }
+            } catch (Exception ignored) {
+            }
         }
 
         String fallbackSvg = "<svg xmlns='http://www.w3.org/2000/svg' width='600' height='320' viewBox='0 0 600 320'>"
@@ -991,9 +978,7 @@ public class DatabaseInitializer {
                             "INSERT INTO attendee(username,clientType,tertiaryInstitution,phoneNumber,studentNumber,idPassportNumber,dateOfBirth,biography,firstname,lastname,email,password,qrcode_QRcodeID) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
                             Statement.RETURN_GENERATED_KEYS);
                     PreparedStatement attendeeEventInsert = conn.prepareStatement(
-                            "INSERT INTO attendee_has_event(attendeeID,eventID) VALUES(?,?)");
-                    PreparedStatement attendeeTicketInsert = conn.prepareStatement(
-                            "INSERT INTO attendee_has_ticket(attendeeID,ticketID) VALUES(?,?)")) {
+                            "INSERT INTO attendee_has_event(attendeeID,eventID) VALUES(?,?)")) {
 
                 long seedTime = System.currentTimeMillis();
 
@@ -1046,16 +1031,80 @@ public class DatabaseInitializer {
                     attendeeEventInsert.setInt(1, attendeeId);
                     attendeeEventInsert.setInt(2, eventId);
                     attendeeEventInsert.executeUpdate();
-
-                    Integer ticketId = firstTicketForEvent(conn, eventId);
-                    if (ticketId != null) {
-                        attendeeTicketInsert.setInt(1, attendeeId);
-                        attendeeTicketInsert.setInt(2, ticketId);
-                        attendeeTicketInsert.executeUpdate();
-                    }
                 }
             }
         }
+    }
+
+    private static void seedEventAlbumImages(Connection conn, int[] eventIDs) throws SQLException {
+        String[] names = {
+            "TUT Freshers Bash 2026",
+            "TUT Tech Innovation Summit 2026",
+            "TUT Cultural Day 2026",
+            "TUT Sports Tournament 2026",
+            "TUT Music & Arts Night 2026"
+        };
+        String sql = "UPDATE event SET imageFilename=?, imageMimeType=?, imageData=? WHERE eventID=?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            for (int i = 0; i < names.length; i++) {
+                byte[] bytes = loadEventImageFile(names[i] + ".png");
+                if (bytes == null) {
+                    bytes = generateEventSvgFallback(names[i]);
+                }
+                ps.setString(1, names[i].replace(" ", "-").toLowerCase() + ".png");
+                ps.setString(2, "image/png");
+                ps.setBytes(3, bytes);
+                ps.setInt(4, eventIDs[i]);
+                ps.executeUpdate();
+            }
+        }
+    }
+
+    private static byte[] loadEventImageFile(String filename) {
+        String[] searchPaths = {
+            System.getProperty("catalina.base", "") + "/webapps/tickify/assets/events/" + filename,
+            System.getProperty("catalina.base", "") + "/webapps/Tickify-SWP-Web-App/assets/events/" + filename,
+            System.getProperty("user.dir", "") + "/web/assets/events/" + filename,
+            "/opt/tickify/tomcat/webapps/tickify/assets/events/" + filename
+        };
+        for (String path : searchPaths) {
+            java.io.File file = new java.io.File(path);
+            if (file.exists() && file.isFile()) {
+                try {
+                    return java.nio.file.Files.readAllBytes(file.toPath());
+                } catch (Exception e) {
+                    System.err.println("Failed to read event image: " + path + " - " + e.getMessage());
+                }
+            }
+        }
+        System.err.println("Event image not found: " + filename + " (tried assets/events/)");
+        return null;
+    }
+
+    private static byte[] generateEventSvgFallback(String name) {
+        String[] themes = {
+            "#ff6b35", "#2563eb", "#7c3aed", "#059669", "#dc2626"
+        };
+        String[] labels = {
+            "TUT Freshers Bash 2026", "TUT Tech Innovation Summit 2026",
+            "TUT Cultural Day 2026", "TUT Sports Tournament 2026",
+            "TUT Music & Arts Night 2026"
+        };
+        int idx = 0;
+        for (int i = 0; i < labels.length; i++) {
+            if (labels[i].equals(name)) { idx = i; break; }
+        }
+        String svg = "<svg xmlns='http://www.w3.org/2000/svg' width='800' height='400' viewBox='0 0 800 400'>"
+                + "<rect width='100%' height='100%' fill='#f8fafc' rx='12'/>"
+                + "<text x='400' y='180' font-family='Segoe UI,sans-serif' font-size='32' font-weight='700' fill='" + themes[idx] + "' text-anchor='middle'>" + escapeXml(name) + "</text>"
+                + "<text x='400' y='220' font-family='Segoe UI,sans-serif' font-size='16' fill='#94a3b8' text-anchor='middle'>Tshwane University of Technology</text>"
+                + "<text x='400' y='280' font-family='Segoe UI,sans-serif' font-size='13' fill='#cbd5e1' text-anchor='middle'>Event Poster • Art Image</text>"
+                + "</svg>";
+        return svg.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    private static String escapeXml(String s) {
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#39;");
     }
 
     private static Integer firstTicketForEvent(Connection conn, int eventId) throws SQLException {

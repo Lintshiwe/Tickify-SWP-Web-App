@@ -88,6 +88,17 @@
             font-weight:900;
             letter-spacing:.04em;
         }
+        .status-badge {
+            margin-left:8px;
+            display:inline-block;
+            border-radius:999px;
+            padding:5px 9px;
+            font-size:.72rem;
+            font-weight:900;
+            letter-spacing:.04em;
+        }
+        .status-badge.confirmed { background:#edf5e8; color:#5da72f; }
+        .status-badge.scanned { background:#fff3e0; color:#e65100; }
         .ticket-body {
             display:grid;
             grid-template-columns:1.55fr .95fr;
@@ -250,6 +261,14 @@
                         <div>
                             <span class="badge">${t.eventType}</span>
                             <span class="auth-badge">${t.authToken}</span>
+                            <c:choose>
+                                <c:when test="${t.scanned}">
+                                    <span class="status-badge scanned">SCANNED</span>
+                                </c:when>
+                                <c:otherwise>
+                                    <span class="status-badge confirmed">CONFIRMED</span>
+                                </c:otherwise>
+                            </c:choose>
                         </div>
                         <img class="brand-logo" src="${tickifyLogoUrl}" alt="" onerror="this.style.display='none';">
                     </div>

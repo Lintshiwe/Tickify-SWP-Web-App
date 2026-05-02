@@ -45,9 +45,10 @@ public class TertiaryPresenterDAO {
             ps.setString(7, tp.getPhoneNumber());
             ps.setString(8, tp.getBiography());
 
-            ps.setInt(9, 2);
-
-            ps.setInt(10, 3);
+            int eventId = resolveEventId(tp, conn);
+            int venueId = resolveVenueId(tp, conn);
+            ps.setInt(9, eventId);
+            ps.setInt(10, venueId);
 
             return ps.executeUpdate() > 0;
         }
@@ -321,6 +322,41 @@ public class TertiaryPresenterDAO {
         } catch (Exception ignored) {
             return 0;
         }
+    }
+
+    private int resolveEventId(TertiaryPresenter tp, Connection conn) throws SQLException {
+        if (tp.getEvent() != null) {
+            return tp.getEvent().getEventID();
+        }
+        String sql = "SELECT eventID FROM event WHERE status = 'ACTIVE' ORDER BY eventID FETCH FIRST ROW ONLY";
+        try (PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) {
+                return rs.getInt("eventID");
+            }
+        }
+        String insertSql = "SELECT eventID FROM event ORDER BY eventID FETCH FIRST ROW ONLY";
+        try (PreparedStatement ps = conn.prepareStatement(insertSql);
+             ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) {
+                return rs.getInt("eventID");
+            }
+        }
+        return 1;
+    }
+
+    private int resolveVenueId(TertiaryPresenter tp, Connection conn) throws SQLException {
+        if (tp.getVenue() != null) {
+            return tp.getVenue().getVenueID();
+        }
+        String sql = "SELECT venueID FROM venue ORDER BY venueID FETCH FIRST ROW ONLY";
+        try (PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) {
+                return rs.getInt("venueID");
+            }
+        }
+        return 1;
     }
 
 }

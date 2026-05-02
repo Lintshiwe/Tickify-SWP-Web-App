@@ -29,10 +29,6 @@ protected void doGet(HttpServletRequest request, HttpServletResponse response)
     
     try {
         Integer attendeeId = (Integer) request.getSession().getAttribute("userID");
-        if (attendeeId == null) {
-            response.sendRedirect(request.getContextPath() + "/Login.jsp");
-            return;
-        }
 
         String ajax = request.getParameter("ajax");
         if ("stock".equalsIgnoreCase(ajax)) {
@@ -41,13 +37,33 @@ protected void doGet(HttpServletRequest request, HttpServletResponse response)
             return;
         }
 
+        if ("ticketTypes".equalsIgnoreCase(ajax)) {
+            String eventIdParam = request.getParameter("eventID");
+            if (eventIdParam != null && !eventIdParam.trim().isEmpty()) {
+                try {
+                    int eventId = Integer.parseInt(eventIdParam.trim());
+                    AttendeeDAO typesDAO = new AttendeeDAO();
+                    writeTicketTypesJson(response, typesDAO.getTicketTypesForEvent(eventId));
+                } catch (NumberFormatException e) {
+                    response.getWriter().write("{\"ok\":false,\"types\":[]}");
+                }
+            }
+            return;
+        }
+
         AttendeeDAO attendeeDAO = new AttendeeDAO();
         AdvertDAO advertDAO = new AdvertDAO();
         
         List<Map<String, Object>> eventList = attendeeDAO.getAllEventsForAttendee(attendeeId);
-        List<Map<String, Object>> wishlistEvents = attendeeDAO.getWishlistEvents(attendeeId);
+        List<Map<String, Object>> wishlistEvents = new ArrayList<>();
         List<Map<String, Object>> adverts = advertDAO.getActiveSelectedAdverts();
-        Set<Integer> wishlistEventIds = attendeeDAO.getWishlistEventIds(attendeeId);
+        Set<Integer> wishlistEventIds = new java.util.HashSet<>();
+
+        if (attendeeId != null) {
+            wishlistEvents = attendeeDAO.getWishlistEvents(attendeeId);
+            wishlistEventIds = attendeeDAO.getWishlistEventIds(attendeeId);
+        }
+
         HttpSession session = request.getSession();
         Map<Integer, Map<String, Object>> cart = getOrCreateCart(session);
         double checkoutTotal = calculateCartTotal(cart);
@@ -150,6 +166,23 @@ protected void doGet(HttpServletRequest request, HttpServletResponse response)
             total += price * quantity;
         }
         return total;
+    }
+
+    private void writeTicketTypesJson(HttpServletResponse response, List<Map<String, Object>> types) throws IOException {
+        response.setContentType("application/json;charset=UTF-8");
+        StringBuilder out = new StringBuilder();
+        out.append("{\"ok\":true,\"types\":[");
+        for (int i = 0; i < types.size(); i++) {
+            Map<String, Object> t = types.get(i);
+            if (i > 0) out.append(',');
+            out.append("{\"ticketID\":").append(t.get("ticketID"))
+               .append(",\"ticketType\":\"").append(t.get("ticketType"))
+               .append("\",\"price\":").append(t.get("price"))
+               .append(",\"availableCount\":").append(t.get("availableCount"))
+               .append("}");
+        }
+        out.append("]}");
+        response.getWriter().write(out.toString());
     }
 
 }

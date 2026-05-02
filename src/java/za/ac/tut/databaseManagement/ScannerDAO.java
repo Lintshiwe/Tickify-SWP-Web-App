@@ -61,11 +61,6 @@ public class ScannerDAO {
                 return ScanResult.invalid("Ticket is not mapped to an event", authenticityStatus);
             }
 
-            if (ticket.eventId != guardEventId) {
-                logScan(conn, venueGuardId, ticket.ticketId, trimmedCode, "INVALID", "Ticket is for a different event");
-                return ScanResult.invalid("Ticket is for a different event", authenticityStatus);
-            }
-
             if (isTicketAlreadyUsed(conn, ticket.ticketId)) {
                 logScan(conn, venueGuardId, ticket.ticketId, trimmedCode, "INVALID", "Ticket already used");
                 return ScanResult.invalid("Ticket already used", authenticityStatus);
@@ -231,7 +226,7 @@ public class ScannerDAO {
     }
 
     public List<Map<String, Object>> getAttendeeListForGuardEvent(int venueGuardId, int limit) throws SQLException {
-        int safeLimit = limit <= 0 ? 200 : Math.min(limit, 1000);
+        int safeLimit = Math.max(1, Math.min(limit <= 0 ? 200 : limit, 1000));
         String sql = "SELECT DISTINCT a.attendeeID, a.username, a.firstname, a.lastname, a.email "
                 + "FROM venue_guard vg "
                 + "JOIN event_has_ticket eht ON eht.eventID = vg.eventID "

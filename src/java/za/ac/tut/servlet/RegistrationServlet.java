@@ -20,7 +20,7 @@ import za.ac.tut.entities.QRCode;
 
 public class RegistrationServlet extends HttpServlet {
 
-    private static final int MAX_SIGNUP_ATTEMPTS = -1;
+    private static final int MAX_SIGNUP_ATTEMPTS = 5;
     private static final long WINDOW_MS = 15 * 60 * 1000L;
     private static final long LOCK_MS = 15 * 60 * 1000L;
     private static final ConcurrentMap<String, AttemptRecord> SIGNUP_ATTEMPTS = new ConcurrentHashMap<>();

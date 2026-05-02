@@ -53,16 +53,14 @@ public class ClientPasswordResetServlet extends HttpServlet {
         String resetLink = null;
 
         if (!userDAO.isClientRole(role) || identifier == null) {
-            request.setAttribute("error", "Choose a client role and enter your username or email.");
-            request.getRequestDispatcher("/ClientPasswordReset.jsp").forward(request, response);
+            response.sendRedirect(request.getContextPath() + "/ClientPasswordReset.jsp?err=InvalidRequest");
             return;
         }
 
         try {
             UserDAO.ClientAccount account = userDAO.findClientByIdentifier(role, identifier);
             if (account == null) {
-                request.setAttribute("status", "If this account exists, a reset link can be generated.");
-                request.getRequestDispatcher("/ClientPasswordReset.jsp").forward(request, response);
+                response.sendRedirect(request.getContextPath() + "/ClientPasswordReset.jsp?msg=ResetEmailSent");
                 return;
             }
 
@@ -73,8 +71,7 @@ public class ClientPasswordResetServlet extends HttpServlet {
             resetLink = appBase + request.getContextPath() + "/ClientPasswordReset.do?token=" + encoded;
 
             emailService.sendPasswordResetEmail(account.getEmail(), resetLink);
-            request.setAttribute("status", "A password reset email has been sent to your account if it exists.");
-            request.getRequestDispatcher("/ClientPasswordReset.jsp").forward(request, response);
+            response.sendRedirect(request.getContextPath() + "/ClientPasswordReset.jsp?msg=ResetEmailSent");
         } catch (SQLException ex) {
             log("Failed to generate password reset token", ex);
             request.setAttribute("error", "Unable to generate reset token right now.");
@@ -85,7 +82,6 @@ public class ClientPasswordResetServlet extends HttpServlet {
             applyResetLinkFallback(request, resetLink);
             request.getRequestDispatcher("/ClientPasswordReset.jsp").forward(request, response);
         } catch (Throwable ex) {
-            // Guard against runtime linkage/classloading issues in the mail stack.
             log("Failed to send password reset email", ex);
             request.setAttribute("error", resolveEmailSendError(ex));
             applyResetLinkFallback(request, resetLink);

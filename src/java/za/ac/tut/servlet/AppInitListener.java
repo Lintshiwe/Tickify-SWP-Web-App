@@ -10,8 +10,9 @@ import java.util.Enumeration;
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
 import javax.servlet.annotation.WebListener;
+import za.ac.tut.databaseConnection.ConnectionPoolManager;
 import za.ac.tut.databaseConnection.DatabaseInitializer;
- 
+
 
 @WebListener
 public class AppInitListener implements ServletContextListener {
@@ -25,6 +26,7 @@ public class AppInitListener implements ServletContextListener {
  
     @Override
     public void contextDestroyed(ServletContextEvent sce) {
+        ConnectionPoolManager.shutdownPool();
         ClassLoader appClassLoader = Thread.currentThread().getContextClassLoader();
         Enumeration<Driver> drivers = DriverManager.getDrivers();
         while (drivers.hasMoreElements()) {

@@ -13,7 +13,7 @@
         body { margin:0; font-family:"Trebuchet MS","Segoe UI",sans-serif; background:#f7faf6; color:var(--ink); }
         .site-header {
             width:100%;
-            background:#f7f8f6;
+            background:#f7f8f6 url('${pageContext.request.contextPath}/assets/Tickify-header-background.png') center/cover no-repeat;
             border-bottom:1px solid #dfe5dc;
             position:sticky;
             top:0;

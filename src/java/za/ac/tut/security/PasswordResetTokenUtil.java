@@ -93,6 +93,7 @@ public final class PasswordResetTokenUtil {
         if (property != null && !property.trim().isEmpty()) {
             return property.trim();
         }
+        System.err.println("WARNING: TICKIFY_RESET_TOKEN_SECRET not set. Using insecure default for development. Set this environment variable in production.");
         return "tickify-reset-dev-secret-change-me";
     }
 

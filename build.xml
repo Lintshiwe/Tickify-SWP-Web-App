@@ -12,7 +12,9 @@
     <import file="nbproject/build-impl.xml"/>
 
     <property name="derby.classpath" value="${user.home}/GlassFish_Server/javadb/lib/derby.jar:${user.home}/GlassFish_Server/javadb/lib/derbyclient.jar"/>
-    <property name="mail.classpath" value="${user.home}/GlassFish_Server/glassfish/modules/javax.mail.jar:${user.home}/GlassFish_Server/glassfish/modules/javamail-runtime.jar:${user.home}/GlassFish_Server/glassfish/modules/javamail-connector.jar"/>
+    <condition property="mail.classpath" value="${tickify.glassfish.home}/glassfish/modules/javax.mail.jar:${tickify.glassfish.home}/glassfish/modules/javamail-runtime.jar:${tickify.glassfish.home}/glassfish/modules/javamail-connector.jar" else="${user.home}/GlassFish_Server/glassfish/modules/javax.mail.jar:${user.home}/GlassFish_Server/glassfish/modules/javamail-runtime.jar:${user.home}/GlassFish_Server/glassfish/modules/javamail-connector.jar">
+        <isset property="tickify.glassfish.home"/>
+    </condition>
 
     <target name="reliability-check" depends="compile,test,run" description="Compile, deploy, and run reliability suite">
         <java classname="za.ac.tut.integration.ReliabilitySuite" fork="true" failonerror="true">

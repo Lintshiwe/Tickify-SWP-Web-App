@@ -42,6 +42,8 @@ public class EventManagerDashboardServlet extends HttpServlet {
             List<Map<String, Object>> assignedEvents = dao.getAssignedEvents(eventManagerId);
             List<Map<String, Object>> guardCoverage = dao.getVenueGuardCoverage(eventManagerId);
             List<Map<String, Object>> presenterSessions = dao.getPresenterSessions(eventManagerId);
+            List<Map<String, Object>> guardScanActivity = dao.getGuardScanActivity(eventManagerId);
+            List<Map<String, Object>> presenterScheduleActivity = dao.getPresenterScheduleActivity(eventManagerId);
 
             int invalidScans24h = dao.countInvalidScansLast24h(eventManagerId);
             int validScans24h = dao.countValidScansLast24h(eventManagerId);
@@ -53,6 +55,8 @@ public class EventManagerDashboardServlet extends HttpServlet {
             request.setAttribute("assignedEvents", assignedEvents);
             request.setAttribute("guardCoverage", guardCoverage);
             request.setAttribute("presenterSessions", presenterSessions);
+            request.setAttribute("guardScanActivity", guardScanActivity);
+            request.setAttribute("presenterScheduleActivity", presenterScheduleActivity);
 
             request.setAttribute("eventCount", assignedEvents.size());
             request.setAttribute("guardCount", guardCoverage.size());

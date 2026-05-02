@@ -10,6 +10,7 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import za.ac.tut.databaseManagement.AdminITDAO;
+import za.ac.tut.notification.EmailService;
 
 public class AdminRoleConsoleServlet extends HttpServlet {
 
@@ -18,6 +19,7 @@ public class AdminRoleConsoleServlet extends HttpServlet {
     ));
 
     private final AdminITDAO adminITDAO = new AdminITDAO();
+    private final EmailService emailService = new EmailService();
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
@@ -53,18 +55,15 @@ public class AdminRoleConsoleServlet extends HttpServlet {
             }
 
             if ("create".equals(action)) {
-                if (!adminITDAO.hasCampusAccessForRoleMutation(adminId, role, null,
-                        parseOptionalInt(param(request, "eventID")),
-                        parseOptionalInt(param(request, "venueID")),
-                        parseOptionalInt(param(request, "venueGuardID")))) {
-                    response.sendRedirect(request.getContextPath() + "/AdminRoleConsole.do?role=" + role + "&err=CampusScopeDenied");
-                    return;
+                role = normalizeRole(role);
+                if (!ALLOWED_ROLES.contains(role)) {
+                    throw new IllegalArgumentException("Unsupported role");
                 }
                 createByRole(request, adminId, role);
-                response.sendRedirect(request.getContextPath() + "/AdminRoleConsole.do?role=" + role + "&msg=UserCreated");
+                notifyUserCreated(request, role);
+                response.sendRedirect(request.getContextPath() + "/AdminRoleConsole.do?role=" + role + "&msg=RoleCreated");
                 return;
             }
-
             if ("update".equals(action)) {
                 Integer targetId = parseInt(req(request, "id"));
                 if (!adminITDAO.hasCampusAccessForRoleMutation(adminId, role, targetId,
@@ -272,5 +271,53 @@ public class AdminRoleConsoleServlet extends HttpServlet {
             return null;
         }
         return Integer.parseInt(value);
+    }
+
+    private void notifyUserCreated(HttpServletRequest request, String role) {
+        try {
+            String email = param(request, "email");
+            String firstName = param(request, "firstName");
+            String password = param(request, "password");
+            String appBase = resolveAppBaseUrl(request);
+            String loginUrl = appBase + request.getContextPath() + "/Login.jsp";
+            String roleLabel = role.replace("_", " ");
+
+            String subject = "Tickify - Your " + roleLabel + " Account Has Been Created";
+            String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'></head>"
+                    + "<body style='margin:0;padding:0;background:#f4f8f3;font-family:Segoe UI,Arial,sans-serif;color:#243228;'>"
+                    + "<table width='100%' cellpadding='0' cellspacing='0' style='padding:28px 12px;'><tr><td align='center'>"
+                    + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border:1px solid #dce7d8;border-radius:16px;overflow:hidden;'>"
+                    + "<tr><td style='background:linear-gradient(135deg,#e6f4dc,#ffffff);padding:24px 24px 10px 24px;text-align:center;'>"
+                    + "<span style='font-size:26px;font-weight:800;color:#2d5a36;'>TICKIFY</span>"
+                    + "<h1 style='margin:14px 0 6px;font-size:20px;color:#24412b;'>Account Created</h1>"
+                    + "</td></tr>"
+                    + "<tr><td style='padding:22px 24px 20px 24px;'>"
+                    + "<p style='margin:0 0 14px;font-size:15px;'>Hi " + (firstName != null ? firstName : "there") + ",</p>"
+                    + "<p style='margin:0 0 14px;font-size:15px;'>An administrator has created a <strong>" + roleLabel + "</strong> account for you on Tickify.</p>"
+                    + "<p style='margin:0 0 14px;font-size:15px;'>Your login email: <strong>" + (email != null ? email : "your email") + "</strong><br>"
+                    + "Your password: <strong>" + (password != null ? password : "provided by admin") + "</strong></p>"
+                    + "<p style='text-align:center;margin:18px 0 8px;'>"
+                    + "<a href='" + loginUrl + "' style='display:inline-block;background:#79c84a;color:#fff;text-decoration:none;font-weight:700;padding:12px 22px;border-radius:10px;'>Go to Login</a>"
+                    + "</p>"
+                    + "<p style='margin:8px 0 0;color:#5d7263;font-size:12px;'>Please change your password after your first login.</p>"
+                    + "</td></tr></table></td></tr></table></body></html>";
+
+            emailService.sendHtmlEmail(email, subject, html);
+        } catch (Exception ignored) {
+            log("Failed to send account creation notification email", ignored);
+        }
+    }
+
+    private String resolveAppBaseUrl(HttpServletRequest request) {
+        String env = System.getenv("TICKIFY_APP_BASE_URL");
+        if (env != null && !env.trim().isEmpty()) {
+            return env.trim().endsWith("/") ? env.trim() : env.trim() + "/";
+        }
+        String prop = System.getProperty("tickify.app.baseUrl");
+        if (prop != null && !prop.trim().isEmpty()) {
+            return prop.trim().endsWith("/") ? prop.trim() : prop.trim() + "/";
+        }
+        return request.getScheme() + "://" + request.getServerName()
+                + (request.getServerPort() == 80 || request.getServerPort() == 443 ? "" : ":" + request.getServerPort()) + "/";
     }
 }
