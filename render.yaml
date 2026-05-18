@@ -3,7 +3,6 @@ services:
     name: tickify
     env: docker
     dockerfilePath: ./Dockerfile
-    plan: starter
     healthCheckPath: /tickify/
     envVars:
       - key: TICKIFY_DB_MODE
@@ -13,11 +12,11 @@ services:
       - key: TICKIFY_DB_USER
         value: tickify
       - key: TICKIFY_DB_PASSWORD
-        generateValue: true
+        value: tickifypass
       - key: TICKIFY_DB_POOL_SIZE
         value: "10"
       - key: TICKIFY_RESET_TOKEN_SECRET
-        generateValue: true
+        value: tickify-prod-secret-change-me
       - key: TICKIFY_APP_BASE_URL
         fromService:
           type: web
@@ -34,7 +33,3 @@ services:
         sync: false
       - key: TICKIFY_SMTP_FROM
         sync: false
-    disk:
-      name: tickify-derby-data
-      mountPath: /opt/tickify/data
-      sizeGB: 1
