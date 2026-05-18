@@ -18,14 +18,10 @@ services:
       - key: TICKIFY_RESET_TOKEN_SECRET
         value: tickify-prod-secret-change-me
       - key: TICKIFY_APP_BASE_URL
-        fromService:
-          type: web
-          name: tickify
-          property: url
+        value: https://tickify.onrender.com
       - key: TICKIFY_SMTP_HOST
         sync: false
       - key: TICKIFY_SMTP_PORT
-        value: "587"
         sync: false
       - key: TICKIFY_SMTP_USER
         sync: false
