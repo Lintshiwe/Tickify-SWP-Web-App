@@ -1,0 +1,30 @@
+services:
+  tickify:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8082:8080"
+    environment:
+      - TICKIFY_DB_MODE=embedded
+      - TICKIFY_DB_NAME=/opt/tickify/data/tickifyDB
+      - TICKIFY_DB_USER=tickify
+      - TICKIFY_DB_PASSWORD=tickifypass
+      - TICKIFY_DB_POOL_SIZE=10
+      - TICKIFY_RESET_TOKEN_SECRET=tickify-local-dev-secret
+      - TICKIFY_APP_BASE_URL=http://localhost:8080/tickify
+      - TICKIFY_SMTP_HOST=smtp.gmail.com
+      - TICKIFY_SMTP_PORT=587
+      - TICKIFY_SMTP_USER=
+      - TICKIFY_SMTP_PASSWORD=
+      - TICKIFY_SMTP_FROM=
+    volumes:
+      - tickify-data:/opt/tickify/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/tickify/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  tickify-data:

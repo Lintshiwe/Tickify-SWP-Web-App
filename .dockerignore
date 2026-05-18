@@ -1,0 +1,13 @@
+build/
+dist/
+.git/
+.gitignore
+*.log
+derby.log
+node_modules/
+.m2/
+.vscode/
+.idea/
+*.iml
+nbproject/private/
+deploy/.env

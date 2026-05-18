@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: tickify
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /tickify/
+    envVars:
+      - key: TICKIFY_DB_MODE
+        value: embedded
+      - key: TICKIFY_DB_NAME
+        value: /opt/tickify/data/tickifyDB
+      - key: TICKIFY_DB_USER
+        value: tickify
+      - key: TICKIFY_DB_PASSWORD
+        generateValue: true
+      - key: TICKIFY_DB_POOL_SIZE
+        value: "10"
+      - key: TICKIFY_RESET_TOKEN_SECRET
+        generateValue: true
+      - key: TICKIFY_APP_BASE_URL
+        fromService:
+          type: web
+          name: tickify
+          property: url
+      - key: TICKIFY_SMTP_HOST
+        sync: false
+      - key: TICKIFY_SMTP_PORT
+        value: "587"
+        sync: false
+      - key: TICKIFY_SMTP_USER
+        sync: false
+      - key: TICKIFY_SMTP_PASSWORD
+        sync: false
+      - key: TICKIFY_SMTP_FROM
+        sync: false
+    disk:
+      name: tickify-derby-data
+      mountPath: /opt/tickify/data
+      sizeGB: 1

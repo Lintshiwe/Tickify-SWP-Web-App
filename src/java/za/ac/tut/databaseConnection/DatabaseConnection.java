@@ -1,10 +1,8 @@
 package za.ac.tut.databaseConnection;
 
 import java.sql.Connection;
-import java.sql.Driver;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.Enumeration;
 
 public class DatabaseConnection {
     
@@ -15,18 +13,15 @@ public class DatabaseConnection {
     private static final String DB_USER     = resolveRequired("tickify.db.user", "TICKIFY_DB_USER");
     private static final String DB_PASSWORD = resolveRequired("tickify.db.password", "TICKIFY_DB_PASSWORD");
 
-    private static final String CLIENT_DRIVER_CLASS = "org.apache.derby.jdbc.ClientDriver";
-    private static final String EMBEDDED_DRIVER_CLASS = "org.apache.derby.jdbc.EmbeddedDriver";
     private static final String CLIENT_JDBC_URL = "jdbc:derby://" + DB_HOST + ":" + DB_PORT + "/" + DB_NAME + ";create=true;ssl=off";
     private static final String EMBEDDED_JDBC_URL = "jdbc:derby:" + DB_NAME + ";create=true";
 
     static {
         try {
-            Class.forName(CLIENT_DRIVER_CLASS).newInstance();
-            Class.forName(EMBEDDED_DRIVER_CLASS).newInstance();
-            System.out.println("Tickify: Derby drivers loaded (client + embedded).");
+            DriverManager.getDrivers();
+            System.out.println("Tickify: Derby drivers auto-discovered via JDBC SPI.");
         } catch (Exception e) {
-            System.err.println("Tickify Error: Driver check failed: " + e.getMessage());
+            System.err.println("Tickify Error: Driver discovery failed: " + e.getMessage());
         }
     }
 
@@ -73,19 +68,7 @@ public class DatabaseConnection {
         }
     }
 
-    private static void ensureClientDriverRegistered() throws SQLException {
-        boolean driverFound = false;
-        Enumeration<Driver> drivers = DriverManager.getDrivers();
-        while (drivers.hasMoreElements()) {
-            if (drivers.nextElement().getClass().getName().equals(CLIENT_DRIVER_CLASS)) {
-                driverFound = true;
-                break;
-            }
-        }
-
-        if (!driverFound) {
-            DriverManager.registerDriver(new org.apache.derby.jdbc.ClientDriver());
-        }
+    private static void ensureClientDriverRegistered() {
     }
 
     private static boolean isConnectivityFailure(SQLException e) {
