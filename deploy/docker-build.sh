@@ -14,7 +14,7 @@ rm -rf $BUILD_DIR $DIST_DIR
 mkdir -p $CLASSES_DIR
 mkdir -p $DIST_DIR
 
-CP="${LIB_DIR}/derby.jar:${LIB_DIR}/derbyclient.jar:${LIB_DIR}/javax.mail.jar:${LIB_DIR}/javax.servlet-api.jar:${LIB_DIR}/javax.persistence-api.jar:${LIB_DIR}/javax.annotation-api.jar:${LIB_DIR}/javax.activation.jar:${LIB_DIR}/jstl.jar"
+CP="${LIB_DIR}/derby.jar:${LIB_DIR}/derbyclient.jar:${LIB_DIR}/derbyshared.jar:${LIB_DIR}/javax.mail.jar:${LIB_DIR}/javax.servlet-api.jar:${LIB_DIR}/javax.persistence-api.jar:${LIB_DIR}/javax.annotation-api.jar:${LIB_DIR}/javax.activation.jar:${LIB_DIR}/jstl.jar"
 
 echo "=== Compiling Java sources ==="
 find $SRC_DIR -name "*.java" > /tmp/sources.txt

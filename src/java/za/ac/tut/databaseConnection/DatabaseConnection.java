@@ -16,12 +16,21 @@ public class DatabaseConnection {
     private static final String CLIENT_JDBC_URL = "jdbc:derby://" + DB_HOST + ":" + DB_PORT + "/" + DB_NAME + ";create=true;ssl=off";
     private static final String EMBEDDED_JDBC_URL = "jdbc:derby:" + DB_NAME + ";create=true";
 
+    private static final String EMBEDDED_DRIVER_CLASS = "org.apache.derby.iapi.jdbc.AutoloadedDriver";
+    private static final String CLIENT_DRIVER_CLASS = "org.apache.derby.client.ClientAutoloadedDriver";
+
     static {
         try {
-            DriverManager.getDrivers();
-            System.out.println("Tickify: Derby drivers auto-discovered via JDBC SPI.");
+            Class.forName(EMBEDDED_DRIVER_CLASS).newInstance();
+            System.out.println("Tickify: Derby embedded driver loaded.");
         } catch (Exception e) {
-            System.err.println("Tickify Error: Driver discovery failed: " + e.getMessage());
+            System.err.println("Tickify Error: Embedded driver failed: " + e.getMessage());
+        }
+        try {
+            Class.forName(CLIENT_DRIVER_CLASS).newInstance();
+            System.out.println("Tickify: Derby client driver loaded.");
+        } catch (Exception e) {
+            System.err.println("Tickify Error: Client driver failed: " + e.getMessage());
         }
     }
 

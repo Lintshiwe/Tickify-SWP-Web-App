@@ -15,6 +15,8 @@ RUN curl -fsSL -o derby.jar \
       https://repo1.maven.org/maven2/org/apache/derby/derby/10.17.1.0/derby-10.17.1.0.jar && \
     curl -fsSL -o derbyclient.jar \
       https://repo1.maven.org/maven2/org/apache/derby/derbyclient/10.17.1.0/derbyclient-10.17.1.0.jar && \
+    curl -fsSL -o derbyshared.jar \
+      https://repo1.maven.org/maven2/org/apache/derby/derbyshared/10.17.1.0/derbyshared-10.17.1.0.jar && \
     curl -fsSL -o javax.mail.jar \
       https://repo1.maven.org/maven2/com/sun/mail/javax.mail/1.6.2/javax.mail-1.6.2.jar && \
     curl -fsSL -o javax.servlet-api.jar \
